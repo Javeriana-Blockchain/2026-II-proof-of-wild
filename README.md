@@ -1,6 +1,7 @@
 # Proof of Wild · Ruta JaveBlockchain 2026-II
 
 > Equipo de la Ruta JaveBlockchain del Semillero de la Pontificia Universidad Javeriana.
+> Nivel: **Builders** (técnico) · integrantes en `Docs/Ruta JaveBlockchain/team.md`.
 
 ## Qué es este proyecto
 
@@ -12,22 +13,30 @@ Proof of Wild es una plataforma sobre Stellar que permite financiar la recuperac
 
 Datos del problema (fuentes en la síntesis de entrevistas del equipo): el 70 % de los animales traficados en Colombia muere antes de llegar a su destino (Osma Solano, 2026) y Bogotá es el principal punto de salida del tráfico (Casallas, 2026).
 
+## Contratos en testnet
+
+| Contrato | Contract ID (testnet) | Para qué |
+|---|---|---|
+| `hello_world` | `CDL36CHCVLCBVTJLLKVAXVZGWWLDFHCSIQLL7EZTHGS3GSVQYYQT3BJ4` | Getting Started, paso 2 (mínimo) |
+| `increment` | `CCYA2WPUQZCZCU5SOMVY4ZVAHJIBM6P5SKYUV6P4JUH66PQ5ST5HO5I4` | Getting Started, paso 5 (reto) |
+
+Detalles del entorno, los hashes de las transacciones y el frontend en `Docs/Ruta JaveBlockchain/gettingStarted.md`.
+
+## Declaración de uso de IA
+
+- **Usamos IA para explicar conceptos y errores** durante el Getting Started.
+- **Usamos IA para generar código:** el frontend del reto (`index.astro`, del proyecto de la sesión que no está en este repo) se escribió con Claude Code. Los contratos `hello_world` (plantilla de `stellar contract init`) e `increment` (tutorial del curso) no se generaron con IA; los ejecutamos y verificamos en testnet.
+
 ## Estructura
 
 ```
-README.md                      ← esta página: presentación del proyecto
+README.md                      ← esta página: presentación y contratos
 Docs/
 └── Ruta JaveBlockchain/
     ├── team.md                ← integrantes, rol y wallet
     ├── gettingStarted.md      ← entorno, hello_world en testnet (mínimo) y frontend (reto)
-    └── entrevistas.md         ← cinco entrevistas y su síntesis
+    └── entrevistas.md         ← enlace a las entrevistas (Google Drive)
 ```
-
-| Archivo | Qué contiene | Quién lo llena |
-|---|---|---|
-| [`team.md`](<Docs/Ruta JaveBlockchain/team.md>) | Una fila por integrante: nombre, rol (Emprendimiento o Técnico) y wallet de testnet | Todo el equipo |
-| [`gettingStarted.md`](<Docs/Ruta JaveBlockchain/gettingStarted.md>) | Mínimo, paso 2 del Getting Started: versiones de `rustc` y `stellar`, y el `hello_world` desplegado con Contract ID, enlace y hash del invoke. Reto, paso 5: el frontend de Hello World | Integrantes con rol Técnico |
-| [`entrevistas.md`](<Docs/Ruta JaveBlockchain/entrevistas.md>) | Cinco entrevistas con perfil, citas textuales, qué hace hoy la persona y qué le cuesta, y la síntesis | Integrantes con rol Emprendimiento |
 
 ## Enlaces
 
