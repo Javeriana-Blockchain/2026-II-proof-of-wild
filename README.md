@@ -19,24 +19,44 @@ Datos del problema (fuentes en la síntesis de entrevistas del equipo): el 70 % 
 |---|---|---|
 | `hello_world` | `CDL36CHCVLCBVTJLLKVAXVZGWWLDFHCSIQLL7EZTHGS3GSVQYYQT3BJ4` | Getting Started, paso 2 (mínimo) |
 | `increment` | `CCYA2WPUQZCZCU5SOMVY4ZVAHJIBM6P5SKYUV6P4JUH66PQ5ST5HO5I4` | Getting Started, paso 5 (reto) |
+| `RaizSilvestre` (código en `contracts/raiz/`) | `CCX4PHUBWI4RU47II5YNTB7DOEOK4EOC4BFMHYLNV5K366YLNQTJRJNK` | Contrato del proyecto: casos, donaciones, desembolsos con aprobación y hitos |
 
-Detalles del entorno, los hashes de las transacciones y el frontend en `Docs/Ruta JaveBlockchain/gettingStarted.md`.
+El contrato `RaizSilvestre` ya está desplegado y probado de punta a punta en testnet: un caso con meta de 1000 XLM, donaciones de 80 XLM y un desembolso de 35 XLM aprobado por dos firmas (estado `Executed`).
 
-## Declaración de uso de IA
+Las llaves secretas no están en este repositorio.
 
-- **Usamos IA para explicar conceptos y errores** durante el Getting Started.
-- **Usamos IA para generar código:** el frontend del reto (`index.astro`, del proyecto de la sesión que no está en este repo) se escribió con Claude Code. Los contratos `hello_world` (plantilla de `stellar contract init`) e `increment` (tutorial del curso) no se generaron con IA; los ejecutamos y verificamos en testnet.
+## Cómo correrlo
+
+Requisitos: Rust 1.91 o superior, `stellar-cli` 23.1.4 y Node 22.
+
+```bash
+# Pruebas del contrato
+cargo test --manifest-path contracts/raiz/Cargo.toml
+```
+
+Las mismas pruebas corren en cada PR con el workflow `.github/workflows/ci.yml`.
+
+El frontend del reto (paso 5) está descrito en `Docs/Ruta JaveBlockchain/gettingStarted.md`, con la captura `Docs/Ruta JaveBlockchain/frontend.png`.
 
 ## Estructura
 
 ```
-README.md                      ← esta página: presentación y contratos
+README.md                      ← esta página: presentación, contratos y cómo correrlo
+.github/workflows/ci.yml       ← CI: pruebas del contrato en cada PR
+contracts/raiz/                ← contrato RaizSilvestre (Cargo.toml, src/lib.rs, types.rs, test.rs)
 Docs/
+├── diseno-contrato.md         ← diseño del contrato: actores, funciones y reglas
 └── Ruta JaveBlockchain/
     ├── team.md                ← integrantes, rol y wallet
     ├── gettingStarted.md      ← entorno, hello_world en testnet (mínimo) y frontend (reto)
     └── entrevistas.md         ← enlace a las entrevistas (Google Drive)
 ```
+
+## Declaración de uso de IA
+
+- **Usamos IA para generar código:** el contrato `contracts/raiz/` (`lib.rs`, `types.rs`), sus pruebas (`test.rs`), el workflow de CI y borradores de documentación (`Docs/diseno-contrato.md`), con Claude Code.
+- **Usamos IA para explicar conceptos y errores.**
+- Las pruebas fueron ejecutadas por el equipo técnico y André Landinez puede explicar cada parte del contrato.
 
 ## Enlaces
 
