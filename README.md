@@ -46,6 +46,7 @@ README.md                      ← esta página: presentación, contratos y cóm
 contracts/raiz/                ← contrato RaizSilvestre (Cargo.toml, src/lib.rs, types.rs, test.rs)
 Docs/
 ├── diseno-contrato.md         ← diseño del contrato: actores, funciones y reglas
+├── informe.md                 ← informe técnico: problema, hipótesis, diseño, pruebas y limitaciones
 └── Ruta JaveBlockchain/
     ├── team.md                ← integrantes, rol y wallet
     ├── gettingStarted.md      ← entorno, hello_world en testnet (mínimo) y frontend (reto)
