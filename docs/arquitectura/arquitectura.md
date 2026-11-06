@@ -142,12 +142,13 @@ flowchart LR
 | Elemento | Responsabilidad | Interfaz principal |
 |---|---|---|
 | Presentación (`app/`) | Páginas públicas, portal privado, rutas API, validación de entrada | HTTP |
-| `modules/cases` | Casos, necesidades, progreso de financiación, proyección pública | `listPublicCases`, `getPublicCase` |
-| `modules/contributions` | Aportes, confirmación contra la red, comprobante | `prepareContribution`, `confirmContribution` |
-| `modules/expenses` | Gastos, estados y validación | `registerExpense`, `anchorExpense`, `validateExpense` |
-| `modules/milestones` | Hitos, línea de tiempo y niveles de validación | `registerMilestone`, `validateMilestone` |
+| `modules/catalog` | Lado de lectura público: arma catálogo, detalle, línea de tiempo y panel de transparencia solo con proyecciones públicas | `CatalogService.list`, `CatalogService.detail` |
+| `modules/cases` | Casos, progreso de financiación, regla de especie y proyección pública | `toPublicCase`, `fundingProgress` |
+| `modules/contributions` | Aportes, confirmación contra la red, envíos pendientes y reconciliación | `prepare`, `confirm`, `reconcile` |
+| `modules/expenses` | Gastos, ciclo de vida, validación y saldo disponible | `register`, `confirmAnchor`, `confirmValidation`, `summary` |
+| `modules/milestones` | Hitos, línea de tiempo y niveles de validación (el servicio de registro sigue el patrón de gastos y está por construir) | `buildTimeline` |
 | `modules/centers` | Centros, cuenta Stellar verificada, perfil | `getPublicCenter` |
-| `modules/donors` | Donantes por billetera, panel | `getDonorPanel` |
+| `modules/donors` | Donantes por billetera y panel (por construir) | — |
 | `ports/` | Contratos de lo que el dominio necesita del exterior | TypeScript |
 | `platform/stellar` | Adaptador Horizon: construye transacciones, lee y verifica pagos y anclas | `PaymentRail`, `EvidenceAnchor` |
 | `platform/db` | Esquema, migraciones, repositorios, semillas | Repositorios |

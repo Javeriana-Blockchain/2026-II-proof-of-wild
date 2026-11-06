@@ -35,10 +35,24 @@ npm run dev               # http://localhost:3000
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Compilación de producción |
 | `npm run typecheck` | Verificación de tipos |
-| `npm test` | Pruebas de reglas de dominio y adaptadores |
+| `npm test` | Pruebas de reglas de dominio y adaptadores (sin red ni base de datos) |
+| `npm run test:integration` | Pruebas contra PostgreSQL real. **Vacían las tablas** de `TEST_DATABASE_URL`: usa una base desechable |
 | `npm run db:generate` | Genera una migración a partir del esquema |
 | `npm run db:migrate` | Aplica las migraciones |
-| `npm run db:seed` | Carga datos de prueba |
+| `npm run db:seed` | Carga 1 centro ficticio y 3 casos (ingreso, rehabilitación y liberación) |
+| `npm run db:seed:activity` | Igual, con aportes, gastos e hitos de ejemplo para trabajar la interfaz |
+
+## Datos de demostración
+
+`npm run db:seed` crea los casos `POW-001`, `POW-002` y `POW-003`, y tres usuarios de demo (centro, validador y administrador). Variables opcionales, todas en `.env`:
+
+| Variable | Para qué |
+|---|---|
+| `DEMO_PASSWORD` | Contraseña de los usuarios de demo. Si falta, se genera una y se muestra una sola vez |
+| `DEMO_CENTER_ACCOUNT` | Cuenta Stellar del centro. Debe estar fondeada y tener línea de confianza del activo de prueba; si falta, se genera una aleatoria que **no puede recibir aportes** |
+| `DEMO_CENTER_USER_ACCOUNT`, `DEMO_VALIDATOR_ACCOUNT` | Cuentas con las que el usuario del centro y el validador firman sus anclajes |
+
+`db:seed:activity` usa hashes de transacción inventados que **no existen en la red Stellar**. Sirve para desarrollar la interfaz, no para la demostración: allí los aportes, gastos e hitos se registran con Freighter.
 
 ## Estructura
 
