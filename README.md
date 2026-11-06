@@ -54,6 +54,23 @@ npm run dev               # http://localhost:3000
 
 `db:seed:activity` usa hashes de transacción inventados que **no existen en la red Stellar**. Sirve para desarrollar la interfaz, no para la demostración: allí los aportes, gastos e hitos se registran con Freighter.
 
+## Estado del MVP
+
+Qué hay construido sobre la base de la arquitectura y cómo se verificó:
+
+| Requisito | Estado | Verificación |
+|---|---|---|
+| RF-CAT-01 catálogo y RF-CAT-02 detalle con línea de tiempo y panel de transparencia | Construido | Pruebas de integración y peticiones reales contra la base de datos |
+| RF-APA-02 confirmación de aportes (idempotente, con pendientes y reconciliación) | Construido | Pruebas de dominio, de integración y del adaptador contra Horizon testnet (solo lectura) |
+| RF-COM-01 comprobante con metadatos para compartir | Construido (sin botón de compartir) | Petición real: el HTML trae `og:title` |
+| RF-APA-01 apadrinamiento con Freighter | Escrito, **sin probar con la extensión** | Solo compilación y tipos; probar el flujo completo en testnet con una billetera real |
+| RF-GAS-01, RF-VAL-01 gastos y validación | Servicio y reglas construidos y probados; **sin pantallas ni rutas** | Pruebas de dominio e integración |
+| RF-HIT-01 registro de hitos | Reglas y línea de tiempo; **falta el servicio de registro** (mismo patrón que gastos) | Pruebas de dominio |
+| RF-PAN-01 mi panel, RF-CEN-01 perfil del centro | Por construir | — |
+| Ingreso al portal (centro, validador, administración) | Construido; sin límite de intentos | Sesión probada con peticiones reales; el formulario de ingreso no se probó de punta a punta |
+
+Antes de la demostración falta, además: un activo de prueba que represente USDC (emisora y línea de confianza), la cuenta del centro fondeada en testnet y las billeteras del centro y del validador.
+
 ## Estructura
 
 ```text
@@ -61,12 +78,17 @@ src/
   app/            Presentación (Next.js): páginas, layouts y rutas API
   components/     Componentes de interfaz reutilizables
   modules/        Dominio y aplicación, un directorio por capacidad
+                  (catalog, cases, contributions, expenses, milestones, shared)
   ports/          Puertos que el dominio necesita del exterior
-  platform/       Adaptadores (base de datos, Stellar, almacenamiento, sesión) y configuración
+  platform/       Adaptadores y configuración
+                  (db, stellar, storage, auth, config, container.ts)
   lib/            Utilidades sin lógica de negocio
+drizzle/          Migraciones SQL versionadas
 docs/arquitectura/  Contexto, drivers y arquitectura
-tests/            Pruebas
+tests/            Pruebas de dominio, adaptadores e integración
 ```
+
+Rutas HTTP: `GET /api/health`, `POST /api/contributions/prepare`, `POST /api/contributions/confirm`, `POST /api/jobs/reconcile` (con `Authorization: Bearer $CRON_SECRET`) y `GET /api/evidence/[key]` (solo con URL firmada).
 
 Reglas de dependencia entre capas en [`docs/arquitectura/arquitectura.md`](docs/arquitectura/arquitectura.md#5-estructura-del-repositorio-y-reglas-de-dependencia).
 
