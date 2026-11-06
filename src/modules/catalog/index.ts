@@ -3,6 +3,7 @@ export type {
   PublicCaseDetail,
   PublicContribution,
   PublicExpense,
+  PublicReceipt,
   PublicTimelineEntry,
 } from "./service";
 export type {
@@ -11,4 +12,5 @@ export type {
   CatalogReader,
   ConfirmedContributionRow,
   NeedRow,
+  ReceiptRow,
 } from "./repository";

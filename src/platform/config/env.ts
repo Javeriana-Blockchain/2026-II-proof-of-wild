@@ -31,9 +31,15 @@ export const getStellarEnv = lazy(
     STELLAR_NETWORK: z.enum(["testnet"]).default("testnet"),
     HORIZON_URL: z.url().default("https://horizon-testnet.stellar.org"),
     NETWORK_PASSPHRASE: z.string().min(1).default("Test SDF Network ; September 2015"),
-    EXPLORER_BASE_URL: z.url().default("https://stellar.expert/explorer/testnet"),
     ASSET_CODE: z.string().min(1).max(12).default("USDC"),
     ASSET_ISSUER: z.string().regex(/^G[A-Z2-7]{55}$/, "debe ser una cuenta pública de Stellar (G…)"),
+  }),
+);
+
+export const getExplorerEnv = lazy(
+  "explorador de bloques",
+  z.object({
+    EXPLORER_BASE_URL: z.url().default("https://stellar.expert/explorer/testnet"),
   }),
 );
 

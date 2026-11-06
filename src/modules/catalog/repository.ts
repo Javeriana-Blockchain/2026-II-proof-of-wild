@@ -31,7 +31,16 @@ export interface CaseDetailData {
   contributions: ConfirmedContributionRow[];
 }
 
+export interface ReceiptRow {
+  caseCode: string;
+  amount: string;
+  assetCode: string;
+  confirmedAt: Date;
+  txHash: string;
+}
+
 export interface CatalogReader {
   listCases(): Promise<CatalogCaseRow[]>;
   getCaseDetailData(caseCode: string): Promise<CaseDetailData | null>;
+  getReceipt(txHash: string): Promise<ReceiptRow | null>;
 }

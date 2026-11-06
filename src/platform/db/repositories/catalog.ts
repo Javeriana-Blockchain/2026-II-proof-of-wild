@@ -1,6 +1,6 @@
 import { asc, eq, sql } from "drizzle-orm";
 import type { CaseRecord } from "@/modules/cases";
-import type { CaseDetailData, CatalogCaseRow, CatalogReader } from "@/modules/catalog";
+import type { CaseDetailData, CatalogCaseRow, CatalogReader, ReceiptRow } from "@/modules/catalog";
 import type { ExpenseRecord } from "@/modules/expenses";
 import type { MilestoneRecord } from "@/modules/milestones";
 import type { Db } from "../client";
@@ -79,6 +79,22 @@ export class DbCatalogReader implements CatalogReader {
       centerName: row.centerName,
       raisedAmount: raisedByCase.get(row.record.id) ?? "0",
     }));
+  }
+
+  async getReceipt(txHash: string): Promise<ReceiptRow | null> {
+    const [row] = await this.db
+      .select({
+        caseCode: cases.code,
+        amount: contributions.amount,
+        assetCode: contributions.assetCode,
+        confirmedAt: contributions.confirmedAt,
+        txHash: contributions.txHash,
+      })
+      .from(contributions)
+      .innerJoin(cases, eq(contributions.caseId, cases.id))
+      .where(eq(contributions.txHash, txHash))
+      .limit(1);
+    return row ?? null;
   }
 
   async getCaseDetailData(caseCode: string): Promise<CaseDetailData | null> {

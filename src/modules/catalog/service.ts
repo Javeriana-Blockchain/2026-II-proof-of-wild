@@ -1,5 +1,6 @@
 import { sumAmounts } from "@/lib/amount";
 import { explorerTxUrl } from "@/lib/explorer";
+import { isSha256Hex } from "@/lib/hash";
 import { toPublicCase, type PublicCase } from "../cases";
 import {
   publicExpenseStatus,
@@ -31,6 +32,14 @@ export interface PublicExpense {
   validationUrl: string | null;
 }
 
+export interface PublicReceipt {
+  caseCode: string;
+  amount: string;
+  assetCode: string;
+  confirmedAt: string;
+  txUrl: string;
+}
+
 export interface PublicCaseDetail {
   case: PublicCase;
   /** Diagnóstico general; los informes veterinarios completos permanecen privados (RN-08). */
@@ -56,6 +65,20 @@ export class CatalogService {
 
   async list(): Promise<PublicCase[]> {
     return (await this.reader.listCases()).map((row) => this.toPublic(row));
+  }
+
+  /** Comprobante de un aporte (RF-COM-01). No incluye datos del donante. */
+  async receipt(txHash: string): Promise<PublicReceipt | null> {
+    if (!isSha256Hex(txHash)) return null;
+    const row = await this.reader.getReceipt(txHash);
+    if (!row) return null;
+    return {
+      caseCode: row.caseCode,
+      amount: row.amount,
+      assetCode: row.assetCode,
+      confirmedAt: row.confirmedAt.toISOString(),
+      txUrl: explorerTxUrl(this.explorerBaseUrl, row.txHash),
+    };
   }
 
   async detail(caseCode: string): Promise<PublicCaseDetail | null> {

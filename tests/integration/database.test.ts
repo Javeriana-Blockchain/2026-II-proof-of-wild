@@ -155,6 +155,19 @@ describe.skipIf(!url)("integración con PostgreSQL", () => {
       expect(p1?.raisedAmount).toBe("10.0000000");
     });
 
+    it("el comprobante muestra el aporte sin datos del donante y rechaza hashes desconocidos (RF-COM-01)", async () => {
+      const receipt = await catalog.receipt(tx(1));
+      expect(receipt).toMatchObject({
+        caseCode: "POW-001",
+        amount: "10.0000000",
+        assetCode: "USDC",
+        txUrl: `${EXPLORER}/tx/${tx(1)}`,
+      });
+      expect(JSON.stringify(receipt)).not.toContain(DONOR_ACCOUNT);
+      expect(await catalog.receipt(tx(999))).toBeNull();
+      expect(await catalog.receipt("no-es-un-hash")).toBeNull();
+    });
+
     it("deja pendiente un envío si la red falla y lo confirma al reconciliar", async () => {
       rail.mode = "unavailable";
       expect(await service().confirm({ caseCode: "POW-001", txHash: tx(2) })).toEqual({ status: "pending" });
