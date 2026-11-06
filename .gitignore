@@ -1,0 +1,22 @@
+# dependencias y artefactos
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# variables de entorno (solo se versiona .env.example)
+.env
+.env.*
+!.env.example
+
+# datos locales (evidencias subidas en desarrollo)
+.data/
+
+# sistema y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+npm-debug.log*
