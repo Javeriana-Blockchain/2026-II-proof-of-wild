@@ -22,7 +22,7 @@ Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS 4, PostgreSQL 16 c
 ```bash
 npm install
 cp .env.example .env      # completa los valores
-npm run db:up             # PostgreSQL local
+npm run db:up             # PostgreSQL local en el puerto 55432
 npm run db:migrate        # crea las tablas
 npm run db:seed           # carga los 3 casos ficticios
 npm run dev               # http://localhost:3000
