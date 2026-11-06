@@ -94,7 +94,7 @@ Drivers: QA-DIS-01, QA-RND-01.
 
 - Lectura desde la base de datos (ADR-06). La red solo está en la ruta de escritura.
 - Adaptador Stellar con tiempo máximo de espera, reintentos con espera creciente y un corte de circuito simple.
-- Los aportes enviados pero no confirmados quedan en estado pendiente de confirmación; una tarea programada llama a `/api/jobs/reconcile` y los reintenta.
+- Los aportes enviados pero no confirmados se guardan en `pending_contributions`; una tarea programada llama a `/api/jobs/reconcile` y los reintenta. Si la red demuestra que no cumplen, se descartan.
 - Aviso «última sincronización hace N minutos» cuando hay pendientes antiguos.
 
 ### Iteración 6 · Modificabilidad hacia la etapa 2
@@ -164,6 +164,7 @@ erDiagram
   CENTER ||--o{ APP_USER : emplea
   CASE ||--|{ NEED : desglosa
   CASE ||--o{ CONTRIBUTION : recibe
+  CASE ||--o{ PENDING_CONTRIBUTION : espera
   DONOR ||--o{ CONTRIBUTION : realiza
   CASE ||--o{ EXPENSE : registra
   CASE ||--o{ MILESTONE : registra
@@ -204,6 +205,14 @@ erDiagram
     text tx_hash UK
     text kind
     timestamptz confirmed_at
+  }
+  PENDING_CONTRIBUTION {
+    text tx_hash PK
+    uuid case_id FK
+    int attempts
+    text last_error
+    timestamptz submitted_at
+    timestamptz last_attempt_at
   }
   EXPENSE {
     uuid id PK
@@ -246,6 +255,8 @@ erDiagram
     text stellar_account
   }
 ```
+
+`contributions` solo contiene aportes que el servidor ya leyó en la red (`confirmed_at` es la fecha de la transacción). Los envíos que la red aún no muestra, o que no se pudieron leer, esperan en `pending_contributions` hasta que la reconciliación los confirme.
 
 Restricciones que la base de datos hace cumplir: `contributions.tx_hash` único, `CHECK (registered_by <> validated_by)` en gastos e hitos (RN-02), y estados de gasto restringidos a un conjunto cerrado. Además existe `audit_log` (actor, acción, entidad, fecha, datos).
 

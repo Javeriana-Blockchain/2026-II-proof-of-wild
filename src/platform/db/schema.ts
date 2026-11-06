@@ -4,6 +4,7 @@ import {
   check,
   date,
   index,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -155,8 +156,11 @@ export const contributions = pgTable(
     /** Único: confirmar dos veces la misma transacción no duplica el aporte (ADR-04). */
     txHash: text("tx_hash").notNull().unique(),
     kind: contributionKind("kind").notNull().default("unico"),
-    /** Nulo mientras el servidor no haya leído la transacción en la red (RN-03). */
-    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    /**
+     * Fecha de la transacción en la red. Solo existen filas de aportes que el servidor ya leyó en la red
+     * (RN-03); los envíos aún sin confirmar viven en pending_contributions.
+     */
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull(),
     createdAt: createdAt(),
   },
   (t) => [
@@ -164,6 +168,28 @@ export const contributions = pgTable(
     check("contributions_tx_hash_format", sql`${t.txHash} ~ '^[0-9a-f]{64}$'`),
     index("contributions_case_idx").on(t.caseId),
     index("contributions_donor_idx").on(t.donorId),
+  ],
+);
+
+/**
+ * Aportes que el navegador informó pero que la red aún no muestra, o que no se pudieron leer porque la
+ * red no respondió (QA-DIS-01). La tarea de reconciliación los reintenta (ADR-04).
+ */
+export const pendingContributions = pgTable(
+  "pending_contributions",
+  {
+    txHash: text("tx_hash").primaryKey(),
+    caseId: uuid("case_id")
+      .notNull()
+      .references(() => cases.id),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  },
+  (t) => [
+    check("pending_contributions_tx_hash_format", sql`${t.txHash} ~ '^[0-9a-f]{64}$'`),
+    index("pending_contributions_submitted_idx").on(t.submittedAt),
   ],
 );
 
