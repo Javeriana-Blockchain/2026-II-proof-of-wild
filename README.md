@@ -51,6 +51,7 @@ npm run dev               # http://localhost:3000
 | `npm run db:migrate` | Aplica las migraciones |
 | `npm run db:seed` | Carga ONG, proveedores, casos con etapas, donantes y voluntariados (sin actividad en la red) |
 | `npm run db:seed:activity` | Igual, con aportes, gastos e hitos de ejemplo con **hashes inventados**: solo para trabajar la interfaz sin red |
+| `npm run db:fotos` | Pone las fotos de los casos y de cada etapa en una base ya sembrada, sin tocar cuentas ni aportes |
 
 Las pruebas de integración **vacían** la base de `TEST_DATABASE_URL`: usa una base distinta de la de la demo (`proofofwild_test`, ver `.env.example`). Se niegan a correr si apunta a la misma de `DATABASE_URL`.
 

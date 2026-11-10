@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { sumAmounts, toStroops } from "@/lib/amount";
 import {
@@ -116,6 +118,12 @@ describe("datos de prueba de la demo", () => {
       guacamaya.stages.map((s, i) => ({ position: i + 1, cost: s.cost, covered: "0" })),
     );
     expect([...statuses.values()]).toEqual(["en_curso", "pendiente", "pendiente", "pendiente"]);
+  });
+
+  it("las fotos de cada caso y de cada etapa existen en public/", () => {
+    const paths = DEMO_CASES.flatMap((c) => [c.photoPath, ...c.stages.flatMap((s) => (s.photoPath ? [s.photoPath] : []))]);
+    expect(paths).toHaveLength(5 + 16);
+    for (const p of paths) expect(existsSync(path.join("public", p)), p).toBe(true);
   });
 
   it("cuadran los totales de cada ONG después de la demo (170/160 y 315/305)", () => {

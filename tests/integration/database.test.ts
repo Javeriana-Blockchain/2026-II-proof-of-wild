@@ -84,6 +84,13 @@ describe.skipIf(!url)("integración con PostgreSQL", () => {
       expect(tortuga.stages.map((s) => s.status)).toEqual(["completada", "en_curso", "pendiente", "pendiente"]);
     });
 
+    it("la foto de una etapa se ve cuando la etapa ya empezó, no mientras está pendiente", async () => {
+      const guacamaya = (await catalog.caseDetail("POW_001"))!;
+      expect(guacamaya.stages.map((s) => s.photoUrl)).toEqual(["/fotos/etapas/pow_001-etapa-1.webp", null, null, null]);
+      const zarigueya = (await catalog.caseDetail("POW_003"))!;
+      expect(zarigueya.stages.map((s) => s.photoUrl)).toEqual([1, 2, 3, 4].map((n) => `/fotos/etapas/pow_003-etapa-${n}.webp`));
+    });
+
     it("el portal pide la foto del avance de la etapa que está en curso según lo cubierto", async () => {
       const [alas] = await db
         .select({ id: schema.ngos.id })

@@ -69,6 +69,8 @@ export interface DemoStage {
   covers: string;
   cost: string;
   status: "pendiente" | "en_curso" | "completada";
+  /** Foto que muestra el avance del animal en esta etapa (se ve cuando la etapa ya empezó). */
+  photoPath?: string;
   expense?: DemoExpense;
   milestone?: DemoMilestone;
 }
@@ -225,6 +227,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Antiinflamatorio, antibiótico y vendajes",
         cost: "40",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_001-etapa-1.webp",
       },
       {
         name: "Cuidados especiales y recinto adaptado",
@@ -232,6 +235,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Dieta blanda y percha baja mientras sana el ala",
         cost: "30",
         status: "en_curso",
+        photoPath: "/fotos/etapas/pow_001-etapa-2.webp",
       },
       {
         name: "Rehabilitación de vuelo",
@@ -268,6 +272,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Revisión, radiografía y desparasitación",
         cost: "25",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_002-etapa-1.webp",
         expense: {
           provider: "PROV_SABANA",
           amount: "25",
@@ -289,6 +294,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Dieta con calcio y lámpara UV durante 6 semanas",
         cost: "35",
         status: "en_curso",
+        photoPath: "/fotos/etapas/pow_002-etapa-2.webp",
       },
       {
         name: "Recuperación en estanque",
@@ -325,6 +331,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Leche especial para crías y fuente de calor",
         cost: "20",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_003-etapa-1.webp",
         expense: revisado("PROV_COSECHA", "20", "alimentacion", "FV-0201", "2026-08-05"),
         milestone: hitoCerrado("Recibe leche especial cada tres horas y gana peso.", "2026-08-10"),
       },
@@ -334,6 +341,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Paso a alimento sólido mientras crece",
         cost: "25",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_003-etapa-2.webp",
         expense: revisado("PROV_COSECHA", "25", "alimentacion", "FV-0233", "2026-09-01"),
         milestone: hitoCerrado("Ya come alimento sólido y duplicó su peso.", "2026-09-05"),
       },
@@ -343,6 +351,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Recinto exterior para aprender a buscar comida",
         cost: "20",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_003-etapa-3.webp",
         expense: revisado("PROV_MALLAS", "20", "rehabilitacion", "FV-0270", "2026-09-28"),
         milestone: hitoCerrado("Busca comida sola en el recinto exterior.", "2026-10-10"),
       },
@@ -352,6 +361,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Revisión final y liberación en un bosque de la región",
         cost: "15",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_003-etapa-4.webp",
         expense: revisado("PROV_SABANA", "15", "atencion_veterinaria", "FV-0305", "2026-10-22", "Revisión final"),
         milestone: hitoCerrado("Liberada en un bosque de la región.", "2026-10-25"),
       },
@@ -376,6 +386,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Revisión veterinaria y desparasitación",
         cost: "20",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_004-etapa-1.webp",
         expense: revisado("PROV_LLANOVERDE", "20", "atencion_veterinaria", "FV-0150", "2026-06-14"),
         milestone: hitoCerrado("Valoración completa y desparasitado.", "2026-06-15"),
       },
@@ -385,6 +396,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Vitaminas para el plumaje y recinto de recuperación",
         cost: "35",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_004-etapa-2.webp",
         expense: revisado("PROV_ARRAYAN", "35", "medicamentos", "FV-0177", "2026-07-10"),
         milestone: hitoCerrado("Le están creciendo las plumas de vuelo.", "2026-07-25"),
       },
@@ -394,6 +406,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Malla y perchas del aviario",
         cost: "45",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_004-etapa-3.webp",
         expense: revisado("PROV_MALLAS", "45", "rehabilitacion", "FV-0196", "2026-08-12", "Malla y perchas del aviario"),
         milestone: hitoCerrado("Vuela de lado a lado del aviario con otros loros.", "2026-09-05"),
       },
@@ -403,6 +416,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Revisión antes de liberar, liberación y monitoreo",
         cost: "20",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_004-etapa-4.webp",
         expense: revisado(
           "PROV_LLANOVERDE",
           "20",
@@ -434,6 +448,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Hidratación, dieta de recuperación y controles",
         cost: "60",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_005-etapa-1.webp",
         expense: revisado("PROV_SABANA", "60", "atencion_veterinaria", "FV-0122", "2026-05-18"),
         milestone: hitoCerrado("Está hidratado y empezó a recuperar peso.", "2026-06-01"),
       },
@@ -443,6 +458,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Recinto con árboles para trepar",
         cost: "70",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_005-etapa-2.webp",
         expense: revisado("PROV_MALLAS", "70", "rehabilitacion", "FV-0160", "2026-06-20"),
         milestone: hitoCerrado("Ya trepa y descansa en los árboles del recinto.", "2026-07-10"),
       },
@@ -452,6 +468,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Hojas y frutas de su dieta silvestre",
         cost: "40",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_005-etapa-3.webp",
         expense: revisado("PROV_COSECHA", "40", "alimentacion", "FV-0241", "2026-08-20"),
         milestone: hitoCerrado("Come hojas de su dieta silvestre, pero no se vale solo en el bosque.", "2026-09-15"),
       },
@@ -461,6 +478,7 @@ export const DEMO_CASES: DemoCase[] = [
         covers: "Revisión antes del traslado y traslado a la reserva",
         cost: "30",
         status: "completada",
+        photoPath: "/fotos/etapas/pow_005-etapa-4.webp",
         expense: revisado(
           "PROV_SABANA",
           "30",

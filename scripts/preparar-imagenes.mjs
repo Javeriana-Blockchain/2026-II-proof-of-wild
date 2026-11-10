@@ -2,9 +2,12 @@
  * Prepara las fotos y el logo que entrega el equipo para usarlos en la página.
  *
  *   node scripts/preparar-imagenes.mjs "<carpeta con las fotos originales>"
+ *   node scripts/preparar-imagenes.mjs --drive "<carpeta descargada del Drive de fotos por etapa>"
  *
  * - Re-codifica cada foto en WebP sin metadatos (EXIF con GPS incluido; RN-06) y la limita a 1600 px.
  * - Recorta la foto de Fundación Bosque Vivo para que no salga ninguna persona.
+ * - Con --drive: la foto principal de la guacamaya y una foto por etapa de cada caso (máx. 960 px), desde el
+ *   Drive del equipo, que tiene una carpeta por animal.
  * - Logo: usa `logo-oso.png` (la silueta con fondo transparente que entrega el equipo). Si no está, extrae
  *   el oso del centro del boceto y le quita el fondo blanco.
  *
@@ -15,9 +18,10 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
-const origen = process.argv[2];
+const drive = process.argv[2] === "--drive";
+const origen = process.argv[drive ? 3 : 2];
 if (!origen) {
-  console.error('Uso: node scripts/preparar-imagenes.mjs "<carpeta de origen>"');
+  console.error('Uso: node scripts/preparar-imagenes.mjs [--drive] "<carpeta de origen>"');
   process.exit(1);
 }
 
@@ -27,7 +31,6 @@ const MAX_ANCHO = 1600;
 /** Archivo de origen → destino en public/, con recorte opcional { left, top, width, height }. */
 const FOTOS = [
   { de: "osoanteojos_.png", a: "fotos/portada-oso-de-anteojos.webp" },
-  { de: "guacamayaroja.jpg.jpeg", a: "fotos/casos/pow_001-guacamaya-roja.webp" },
   { de: "tortugahicotea.webp", a: "fotos/casos/pow_002-tortuga-hicotea.webp" },
   { de: "zarihueya.jpg.jpeg", a: "fotos/casos/pow_003-zarigueya-comun.webp" },
   { de: "lorito.webp", a: "fotos/casos/pow_004-loro-real.webp" },
@@ -41,14 +44,41 @@ const FOTOS = [
   },
 ];
 
-async function prepararFoto({ de, a, recorte }) {
+/** Drive del equipo: la foto corregida de la guacamaya y la foto que muestra el avance de cada etapa. */
+const ETAPA = 960;
+const FOTOS_DRIVE = [
+  // Foto vertical: se recorta a 4:3 con la cabeza y el pecho, que es como se ve en las tarjetas.
+  {
+    de: "Guacamayo Rojo/guacamayorojo_.jpg",
+    a: "fotos/casos/pow_001-guacamaya-roja.webp",
+    recorte: { left: 0, top: 380, width: 2192, height: 1640 },
+  },
+  { de: "Guacamayo Rojo/medicamentoguacamayo_etapa1.jpg", a: "fotos/etapas/pow_001-etapa-1.webp", ancho: ETAPA },
+  { de: "Guacamayo Rojo/recintoadaptadoguacamayo_etapa2.jpg", a: "fotos/etapas/pow_001-etapa-2.webp", ancho: ETAPA },
+  { de: "Tortuga Hicotea/valoracióntortugahicotea_etapa1.jpg", a: "fotos/etapas/pow_002-etapa-1.webp", ancho: ETAPA },
+  { de: "Tortuga Hicotea/tratamientouv_tortugahicotea_etapa2.jpg", a: "fotos/etapas/pow_002-etapa-2.webp", ancho: ETAPA },
+  { de: "Zarigüeya/lechezarigueya_etapa1.jpeg", a: "fotos/etapas/pow_003-etapa-1.webp", ancho: ETAPA },
+  { de: "Zarigüeya/alimetaciónzarigueya_etapa2.jpeg", a: "fotos/etapas/pow_003-etapa-2.webp", ancho: ETAPA },
+  { de: "Zarigüeya/entrenamientoexterior_zarigueya_etapa3.jpg", a: "fotos/etapas/pow_003-etapa-3.webp", ancho: ETAPA },
+  { de: "Zarigüeya/liberaciónzarigueya_etapa4.jpg", a: "fotos/etapas/pow_003-etapa-4.webp", ancho: ETAPA },
+  { de: "Loro Real/valoraciónlororeal_etapa1.png", a: "fotos/etapas/pow_004-etapa-1.webp", ancho: ETAPA },
+  { de: "Loro Real/vitaminaslororeal_etapa2.jpg", a: "fotos/etapas/pow_004-etapa-2.webp", ancho: ETAPA },
+  { de: "Loro Real/entrenamientovueloloro_etapa3.jpg", a: "fotos/etapas/pow_004-etapa-3.webp", ancho: ETAPA },
+  { de: "Loro Real/liberaciónlororeal_etapa4.webp", a: "fotos/etapas/pow_004-etapa-4.webp", ancho: ETAPA },
+  { de: "Perezoso/desnutriciónperezoso_etapa1.jpg", a: "fotos/etapas/pow_005-etapa-1.webp", ancho: ETAPA },
+  { de: "Perezoso/recintoperezoso_etapa2.jpg", a: "fotos/etapas/pow_005-etapa-2.webp", ancho: ETAPA },
+  { de: "Perezoso/alimentaciónperezoso_etapa3.jpg", a: "fotos/etapas/pow_005-etapa-3.webp", ancho: ETAPA },
+  { de: "Perezoso/reservaperezoso_etapa4.jpg", a: "fotos/etapas/pow_005-etapa-4.webp", ancho: ETAPA },
+];
+
+async function prepararFoto({ de, a, recorte, ancho = MAX_ANCHO }) {
   let imagen = sharp(path.join(origen, de)).rotate();
   if (recorte) imagen = imagen.extract(recorte);
   const destino = path.join(publico, a);
   await mkdir(path.dirname(destino), { recursive: true });
   // sharp no copia metadatos al resultado salvo que se pida con withMetadata().
   const info = await imagen
-    .resize({ width: MAX_ANCHO, withoutEnlargement: true })
+    .resize({ width: ancho, withoutEnlargement: true })
     .webp({ quality: 82 })
     .toFile(destino);
   console.log(`${a}  ${info.width}×${info.height}`);
@@ -170,5 +200,9 @@ async function prepararLogo() {
   console.log(`marca/logo-oso.png  ${meta.width}×${meta.height}  (y src/app/icon.png 64×64)`);
 }
 
-for (const foto of FOTOS) await prepararFoto(foto);
-await prepararLogo();
+if (drive) {
+  for (const foto of FOTOS_DRIVE) await prepararFoto(foto);
+} else {
+  for (const foto of FOTOS) await prepararFoto(foto);
+  await prepararLogo();
+}

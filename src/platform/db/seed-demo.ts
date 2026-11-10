@@ -162,6 +162,7 @@ export async function seedDemo(db: Db, options: SeedOptions = {}): Promise<SeedR
             covers: s.covers,
             cost: s.cost,
             status: s.status,
+            photoPath: s.photoPath ?? null,
           })),
         )
         .returning({ id: stages.id, position: stages.position });
