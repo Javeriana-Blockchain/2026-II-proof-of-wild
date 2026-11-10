@@ -27,6 +27,18 @@ Tres ideas sostienen el diseño:
 | ADR-09 | `PaymentRail` y `EvidenceAnchor` como puertos; el adaptador Stellar clásico los implementa. En la etapa 2 un adaptador Soroban, basado en el contrato `RaizSilvestre` del equipo, implementa los mismos puertos | QA-MOD-01, CON-07 | Llamar al SDK de Stellar desde los módulos | Una indirección adicional |
 | ADR-10 | Una aplicación sin estado, PostgreSQL gestionado y almacén de objetos privado; migraciones versionadas, semillas de los 3 casos ficticios y CI de tipos, pruebas y build | QA-DEP-01, CON-06 | Despliegue manual; contenedores orquestados | Dependencia de servicios gestionados para la demo |
 
+### Decisiones por el brief del 9 de noviembre de 2026
+
+El brief consolidado mete en el MVP el contrato en Soroban, las etapas con costo, las cuentas para todos y el voluntariado. Estas decisiones **reemplazan** a ADR-03, ADR-04, ADR-05, ADR-07 y ADR-08, y concretan ADR-09. Las demás siguen vigentes.
+
+| ID | Decisión | Reemplaza | Drivers | Costo |
+|---|---|---|---|---|
+| ADR-11 | Contrato `ProofOfWild` en Soroban, ampliado desde `RaizSilvestre`: guarda el dinero de cada caso, reparte cada aporte en orden entre las etapas (rechaza lo que supere la meta), y `registrar_gasto` le paga directo al proveedor desde lo cubierto y sin gastar de una etapa y guarda el hash de la factura. Casos por código `POW_001` (Symbol) | ADR-03, ADR-05 | RF-APA-01, RF-GAS-01, RF-HIT-01, QA-TRZ-01, CON-07 | La firma doble (ONG y validador) queda para la etapa 2; hay que redesplegar el contrato si cambia |
+| ADR-12 | La página guarda una copia de cada transacción con su reparto al enviarla (el RPC de Stellar conserva los eventos unos 7 días) y la confirma leyendo la red | ADR-04 | RN-03, QA-DIS-01 | Consistencia eventual mientras la red confirma |
+| ADR-13 | Las facturas (con los datos de terceros tapados) y las fotos de los hitos se publican, para que cualquiera compare su hash con el de la red: doble confirmación | ADR-07 (en lo de URL firmadas) | QA-TRZ-01, RN-08 | Las facturas deben subirse ya anonimizadas |
+| ADR-14 | Todos entran con correo y contraseña (persona u ONG) usando SRP-6a: la base solo guarda sal y verificador, la contraseña nunca viaja. Desafíos de un solo uso de 2 minutos, bloqueo tras 5 fallos, señuelo para correos inexistentes y sesiones guardadas como SHA-256 del token | ADR-08 | QA-SEG-01, QA-SEG-02 | Recuperar la contraseña exige un flujo por correo (fuera del MVP) |
+| ADR-15 | Script de preparación de testnet (`npm run red:preparar`): cuentas con Friendbot, USDC de prueba y su Stellar Asset Contract, despliegue del contrato, casos y la actividad de los datos de prueba, en minutos | Concreta ADR-10 | QA-DEP-01, R-02 | Depende de Friendbot y del RPC público el día que se corre |
+
 ### Tecnologías
 
 | Capa | Elección |
