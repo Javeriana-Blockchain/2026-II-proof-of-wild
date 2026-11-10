@@ -20,6 +20,7 @@ import {
 import type { Db } from "@/platform/db/client";
 import { DbCatalogReader } from "@/platform/db/repositories/catalog";
 import { DbContributionStore } from "@/platform/db/repositories/contributions";
+import { getPortalData } from "@/platform/db/repositories/portal";
 import * as schema from "@/platform/db/schema";
 import { resetDemo, seedDemo } from "@/platform/db/seed-demo";
 import { sha256Hex } from "@/lib/hash";
@@ -66,7 +67,32 @@ describe.skipIf(!url)("integración con PostgreSQL", () => {
       const cases = await catalog.listCases();
       expect(cases.map((c) => c.code)).toEqual(["POW_001", "POW_002", "POW_003", "POW_004", "POW_005"]);
       expect(cases.map((c) => c.recovered)).toEqual([false, false, true, true, true]);
-      expect(cases[0]).toMatchObject({ raised: "0.0000000", goal: "150.0000000", chip: { label: "Cuidados especiales" } });
+      // Antes del aporte en vivo la guacamaya está en 0: su etapa actual es la 1 (pasa a «Cuidados especiales»
+      // cuando Ana cubre los 40 USDC del medicamento).
+      expect(cases[0]).toMatchObject({ raised: "0.0000000", goal: "150.0000000", chip: { label: "Medicamento" } });
+    });
+
+    it("el estado de cada etapa sale de lo cubierto: la guacamaya en 0 no muestra la etapa 1 completada", async () => {
+      const d = (await catalog.caseDetail("POW_001"))!;
+      expect(d.stages.map((s) => [s.status, s.covered])).toEqual([
+        ["en_curso", "0.0000000"],
+        ["pendiente", "0.0000000"],
+        ["pendiente", "0.0000000"],
+        ["pendiente", "0.0000000"],
+      ]);
+      const tortuga = (await catalog.caseDetail("POW_002"))!;
+      expect(tortuga.stages.map((s) => s.status)).toEqual(["completada", "en_curso", "pendiente", "pendiente"]);
+    });
+
+    it("el portal pide la foto del avance de la etapa que está en curso según lo cubierto", async () => {
+      const [alas] = await db
+        .select({ id: schema.ngos.id })
+        .from(schema.ngos)
+        .where(eq(schema.ngos.slug, "refugio-alas-libres"));
+      const portal = (await getPortalData(db, alas!.id))!;
+      expect(portal.pending.filter((p) => p.title === "Subir la foto del avance").map((p) => p.detail)).toEqual([
+        "Etapa 1 · Medicamento para el ala · POW_001",
+      ]);
     });
 
     it("el detalle cuadra con los datos de prueba: tortuga con 35 recibidos, 25 gastados y 10 disponibles", async () => {

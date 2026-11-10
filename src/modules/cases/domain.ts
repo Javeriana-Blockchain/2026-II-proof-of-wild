@@ -56,6 +56,22 @@ export function allocateContribution(stages: readonly StageFunding[], amount: st
   return allocations;
 }
 
+/**
+ * Estado de cada etapa según lo que ya aportaron los donantes, por posición: completada si está cubierta,
+ * en curso la primera que aún no lo está y pendientes las que siguen. Como el contrato llena las etapas en
+ * orden, el estado nunca contradice el dinero (una etapa «completada» siempre muestra su costo cubierto).
+ */
+export function stageStatusesFromFunding(stages: readonly StageFunding[]): Map<number, StageStatus> {
+  const statuses = new Map<number, StageStatus>();
+  let previousCovered = true;
+  for (const stage of [...stages].sort((a, b) => a.position - b.position)) {
+    const covered = toStroops(stage.covered) >= toStroops(stage.cost);
+    statuses.set(stage.position, covered ? "completada" : previousCovered ? "en_curso" : "pendiente");
+    previousCovered = covered;
+  }
+  return statuses;
+}
+
 /** Porcentaje recaudado con un decimal, limitado a 100 para la barra de progreso. */
 export function fundingProgress(goal: string, raised: string): number {
   const total = toStroops(goal);

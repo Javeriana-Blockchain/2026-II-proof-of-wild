@@ -1,6 +1,17 @@
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { stageStatusesFromFunding, type StageStatus } from "@/modules/cases";
 import type { Db } from "../client";
-import { cases, contributions, expenses, milestones, ngos, providerNgos, providers, stages } from "../schema";
+import {
+  cases,
+  contributionAllocations,
+  contributions,
+  expenses,
+  milestones,
+  ngos,
+  providerNgos,
+  providers,
+  stages,
+} from "../schema";
 
 export interface PortalRecord {
   at: string;
@@ -41,7 +52,8 @@ export async function getPortalData(db: Db, ngoId: string): Promise<PortalData |
     return { ngo, providers: await providersOf(db, ngoId), totals: { received: "0", spent: "0" }, records: [], pending: [] };
   }
 
-  const [providerRows, received, spent, expenseRows, contributionRows, milestoneRows, stageRows] = await Promise.all([
+  const [providerRows, received, spent, expenseRows, contributionRows, milestoneRows, stageRows, coveredRows] =
+    await Promise.all([
     providersOf(db, ngoId),
     db
       .select({ total: sql<string>`coalesce(sum(${contributions.amount}), 0)` })
@@ -93,9 +105,15 @@ export async function getPortalData(db: Db, ngoId: string): Promise<PortalData |
       .orderBy(desc(milestones.createdAt))
       .limit(20),
     db
-      .select({ id: stages.id, caseId: stages.caseId, position: stages.position, name: stages.name, status: stages.status })
+      .select({ id: stages.id, caseId: stages.caseId, position: stages.position, name: stages.name, cost: stages.cost })
       .from(stages)
       .where(inArray(stages.caseId, ids)),
+    db
+      .select({ stageId: contributionAllocations.stageId, covered: sql<string>`sum(${contributionAllocations.amount})` })
+      .from(contributionAllocations)
+      .innerJoin(contributions, eq(contributions.id, contributionAllocations.contributionId))
+      .where(and(inArray(contributions.caseId, ids), eq(contributions.status, "confirmada")))
+      .groupBy(contributionAllocations.stageId),
   ]);
 
   const status = (s: string, level: PortalRecord["status"]): PortalRecord["status"] =>
@@ -140,11 +158,20 @@ export async function getPortalData(db: Db, ngoId: string): Promise<PortalData |
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 8);
 
+  // El estado de cada etapa sale de lo cubierto, igual que en la página del caso.
+  const coveredOf = new Map(coveredRows.map((r) => [r.stageId, r.covered]));
+  const statusOf = new Map<string, StageStatus>();
+  for (const caseId of new Set(stageRows.map((s) => s.caseId))) {
+    const ofCase = stageRows.filter((s) => s.caseId === caseId);
+    const statuses = stageStatusesFromFunding(ofCase.map((s) => ({ ...s, covered: coveredOf.get(s.id) ?? "0" })));
+    for (const s of ofCase) statusOf.set(s.id, statuses.get(s.position)!);
+  }
+
   const withMilestone = new Set(milestoneRows.filter((m) => m.status === "confirmada").map((m) => m.stageId));
   const activeIds = new Set(caseRows.filter((c) => c.status === "activo").map((c) => c.id));
   const pending: PortalData["pending"] = [
     ...stageRows
-      .filter((s) => activeIds.has(s.caseId) && s.status === "en_curso" && !withMilestone.has(s.id))
+      .filter((s) => activeIds.has(s.caseId) && statusOf.get(s.id) === "en_curso" && !withMilestone.has(s.id))
       .map((s) => ({
         title: "Subir la foto del avance",
         detail: `Etapa ${s.position} · ${s.name} · ${codeOf.get(s.caseId)}`,

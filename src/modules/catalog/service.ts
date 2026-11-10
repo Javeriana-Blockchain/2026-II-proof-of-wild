@@ -1,7 +1,7 @@
 import { fromStroops, sumAmounts, toStroops } from "@/lib/amount";
 import { explorerTxUrl } from "@/lib/explorer";
 import { isStellarAccount } from "@/lib/stellar-account";
-import { fundingProgress, isValidCaseCode, remainingToGoal, type StageStatus } from "../cases";
+import { fundingProgress, isValidCaseCode, remainingToGoal, stageStatusesFromFunding, type StageStatus } from "../cases";
 import type {
   CaseOutcome,
   CaseRow,
@@ -162,12 +162,14 @@ export class CatalogService {
     const positionOf = new Map(ordered.map((s) => [s.id, s.position]));
 
     const expensesOf = (stageId: string) => data.expenses.filter((e) => e.stageId === stageId);
+    const statuses = statusesOf(ordered, data.coveredByStage);
     let previousFull = true;
     const stages: PublicStage[] = ordered.map((stage) => {
       const covered = data.coveredByStage[stage.id] ?? "0";
       const milestones = data.milestones
         .filter((m) => m.stageId === stage.id)
         .sort((a, b) => a.occurredOn.localeCompare(b.occurredOn));
+      const status = statuses.get(stage.position)!;
       const result: PublicStage = {
         position: stage.position,
         name: stage.name,
@@ -175,8 +177,10 @@ export class CatalogService {
         cost: normalize(stage.cost),
         covered: normalize(covered),
         spent: sumAmounts(expensesOf(stage.id).map((e) => e.amount)),
-        status: stage.status,
-        photoUrl: media(stage.photoPath) ?? media(milestones.at(-1)?.photoKey ?? null),
+        status,
+        // La foto del último hito es la evidencia más reciente; la foto de la etapa solo ilustra una etapa que ya
+        // empezó (en una pendiente se muestra «La foto llega cuando empiece la etapa»).
+        photoUrl: media(milestones.at(-1)?.photoKey ?? null) ?? (status === "pendiente" ? null : media(stage.photoPath)),
         waitingForPrevious: !previousFull && toStroops(covered) === 0n,
         expenses: expensesOf(stage.id).map((e) => ({
           providerName: e.providerName,
@@ -286,6 +290,7 @@ export class CatalogService {
     const raised = sumAmounts(funding.map((s) => s.covered));
     const recovered = row.status === "recuperado";
     const ordered = [...stages].sort((a, b) => a.position - b.position);
+    const statuses = statusesOf(ordered, coveredByStage);
 
     return {
       code: row.code,
@@ -294,7 +299,7 @@ export class CatalogService {
       ngo: row.ngo,
       shortStory: row.shortStory,
       photoUrl: row.photoPath ? this.config.evidenceUrl(row.photoPath) : null,
-      chip: chipFor(row, ordered),
+      chip: chipFor(row, ordered.map((s) => ({ shortName: s.shortName, status: statuses.get(s.position)! }))),
       needs: recovered
         ? ordered.map((s) => s.name)
         : ordered.filter((s) => toStroops(coveredByStage[s.id] ?? "0") < toStroops(s.cost)).map((s) => s.name),
@@ -308,6 +313,16 @@ export class CatalogService {
       progressPercent: fundingProgress(goal, raised),
     };
   }
+}
+
+/** Estado de cada etapa según lo cubierto, para que nunca diga «completada» con la etapa sin cubrir. */
+function statusesOf(
+  stages: ReadonlyArray<{ id: string; position: number; cost: string }>,
+  coveredByStage: Record<string, string>,
+): Map<number, StageStatus> {
+  return stageStatusesFromFunding(
+    stages.map((s) => ({ position: s.position, cost: s.cost, covered: coveredByStage[s.id] ?? "0" })),
+  );
 }
 
 function chipFor(row: CaseRow, ordered: Array<{ shortName: string; status: StageStatus }>): CaseChip {

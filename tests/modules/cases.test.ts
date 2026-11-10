@@ -6,6 +6,7 @@ import {
   fundingProgress,
   isValidCaseCode,
   remainingToGoal,
+  stageStatusesFromFunding,
   type StageFunding,
 } from "@/modules/cases";
 import { ValidationError } from "@/modules/shared/errors";
@@ -95,6 +96,28 @@ describe("datos de prueba de la demo", () => {
     }
   });
 
+  it("después de la demo, el estado que sale de lo cubierto es el del documento en cada etapa", () => {
+    const covered = replay();
+    for (const demoCase of DEMO_CASES) {
+      const statuses = stageStatusesFromFunding(
+        demoCase.stages.map((s, i) => ({
+          position: i + 1,
+          cost: s.cost,
+          covered: (Number(covered.get(demoCase.code)![i]) / 1e7).toString(),
+        })),
+      );
+      expect([...statuses.values()]).toEqual(demoCase.stages.map((s) => s.status));
+    }
+  });
+
+  it("antes de la demo la guacamaya arranca en 0 con la etapa 1 en curso, no completada", () => {
+    const guacamaya = DEMO_CASES.find((c) => c.code === "POW_001")!;
+    const statuses = stageStatusesFromFunding(
+      guacamaya.stages.map((s, i) => ({ position: i + 1, cost: s.cost, covered: "0" })),
+    );
+    expect([...statuses.values()]).toEqual(["en_curso", "pendiente", "pendiente", "pendiente"]);
+  });
+
   it("cuadran los totales de cada ONG después de la demo (170/160 y 315/305)", () => {
     const expensesAfterDemo = (code: string) =>
       DEMO_CASES.find((c) => c.code === code)!.stages.flatMap((s) => (s.expense ? [s.expense.amount] : []));
@@ -129,5 +152,23 @@ describe("progreso y etapa actual", () => {
     expect(currentStage([s("completada", 1), s("pendiente", 2)])?.position).toBe(2);
     expect(currentStage([s("completada", 2), s("completada", 1)])?.position).toBe(2);
     expect(currentStage([])).toBeNull();
+  });
+
+  it("el estado de cada etapa sale de lo cubierto: completada, en curso la primera sin cubrir, pendientes las demás", () => {
+    const f = (position: number, cost: string, covered: string) => ({ position, cost, covered });
+    const values = (stages: StageFunding[]) => [...stageStatusesFromFunding(stages).entries()];
+    expect(values([f(1, "40", "0"), f(2, "30", "0")])).toEqual([
+      [1, "en_curso"],
+      [2, "pendiente"],
+    ]);
+    expect(values([f(1, "40", "40"), f(2, "30", "10"), f(3, "50", "0")])).toEqual([
+      [1, "completada"],
+      [2, "en_curso"],
+      [3, "pendiente"],
+    ]);
+    expect(values([f(2, "30", "30"), f(1, "40", "40")])).toEqual([
+      [1, "completada"],
+      [2, "completada"],
+    ]);
   });
 });
