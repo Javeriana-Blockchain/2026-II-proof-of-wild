@@ -209,7 +209,7 @@ export function ProfileForm({ email, initial }: { email: string; initial: Profil
         ) : null}
 
         <div className="flex flex-wrap items-center justify-end gap-6 border-t border-arena/60 pt-6">
-          <Link href="/casos" className="font-medium text-bosque underline">
+          <Link href="/#casos" className="font-medium text-bosque underline">
             Lo completo después
           </Link>
           <button type="submit" disabled={busy} className={buttonClass("primario", "px-8 py-3 text-lg")}>

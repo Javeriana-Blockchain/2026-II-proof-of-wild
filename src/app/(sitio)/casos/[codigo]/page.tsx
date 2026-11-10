@@ -46,7 +46,7 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
 
   return (
     <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-8">
-      <Link href="/casos" className="inline-flex items-center gap-2 font-medium text-bosque underline">
+      <Link href="/#casos" className="inline-flex items-center gap-2 font-medium text-bosque underline">
         <IconoFlecha izquierda /> Volver a casos
       </Link>
 

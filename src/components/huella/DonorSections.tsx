@@ -79,7 +79,7 @@ export function DonorSections({
     return (
       <section className="space-y-4 rounded-3xl bg-white p-8 text-center">
         <p className="text-xl">{own ? "Aún no apadrinas ningún caso." : "Esta billetera aún no apoya ningún caso."}</p>
-        <Link href="/casos" className={buttonClass("primario")}>
+        <Link href="/#casos" className={buttonClass("primario")}>
           Ver casos
         </Link>
       </section>
@@ -163,7 +163,7 @@ export function DonorSections({
               {own ? (
                 <>
                   Aún no te inscribes.{" "}
-                  <Link href="/voluntariados" className="font-medium text-bosque underline">
+                  <Link href="/#voluntariados" className="font-medium text-bosque underline">
                     Ver voluntariados
                   </Link>
                 </>

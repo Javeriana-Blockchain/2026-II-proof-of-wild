@@ -55,11 +55,11 @@ export default async function PerfilPage() {
           </div>
           {account ? <DisconnectButton /> : null}
         </section>
-        <BadgeCard view={view} sharePath={account ? `/huella/${account}` : "/casos"} publicLink={account ? `/huella/${account}` : undefined} />
+        <BadgeCard view={view} sharePath={account ? `/huella/${account}` : "/#casos"} publicLink={account ? `/huella/${account}` : undefined} />
         {!account ? (
           <p className="rounded-2xl bg-crema p-5 text-sm">
             Tu billetera queda vinculada a tu perfil con tu primer aporte: al firmarlo demuestras que es tuya.{" "}
-            <Link href="/casos" className="font-medium text-bosque underline">
+            <Link href="/#casos" className="font-medium text-bosque underline">
               Elegir un caso
             </Link>
           </p>

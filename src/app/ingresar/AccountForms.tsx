@@ -128,7 +128,7 @@ export function AccountForms({ initialMode, initialRole, returnTo }: { initialMo
           </label>
         ) : (
           <p className="text-sm">
-            <Link href="/como-funciona#cuenta" className="font-medium text-bosque underline">
+            <Link href="/#cuenta" className="font-medium text-bosque underline">
               ¿Olvidaste tu contraseña?
             </Link>
           </p>

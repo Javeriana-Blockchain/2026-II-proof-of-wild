@@ -32,10 +32,10 @@ export function EnrollmentDialog({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  const close = () => router.push("/voluntariados", { scroll: false });
+  const close = () => router.push("/", { scroll: false });
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && router.push("/voluntariados", { scroll: false });
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && router.push("/", { scroll: false });
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [router]);
@@ -169,7 +169,7 @@ export function EnrollmentDialog({
                     tu perfil y en tu Huella verificada.
                   </p>
                   <Link
-                    href={`/ingresar?modo=ingresar&volver=${encodeURIComponent(`/voluntariados?inscribirme=${v.id}`)}`}
+                    href={`/ingresar?modo=ingresar&volver=${encodeURIComponent(`/?inscribirme=${v.id}`)}`}
                     className={buttonClass("secundario", "py-2")}
                   >
                     Ingresar

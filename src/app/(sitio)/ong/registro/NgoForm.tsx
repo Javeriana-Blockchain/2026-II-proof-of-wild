@@ -85,7 +85,7 @@ export function NgoForm({ contactEmail }: { contactEmail: string }) {
       <label className="block">
         <span className="font-semibold">Cuenta de Stellar de la ONG</span>
         <input name="stellarAccount" required placeholder="G…" className={`${field} font-mono`} />
-        <Link href="/como-funciona#billetera" className="mt-1 inline-block text-sm font-medium text-bosque underline">
+        <Link href="/#billetera" className="mt-1 inline-block text-sm font-medium text-bosque underline">
           ¿No tienes una? Te ayudamos a crearla
         </Link>
       </label>

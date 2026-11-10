@@ -133,7 +133,7 @@ export default async function OngProfilePage({ params }: Props) {
                   </p>
                 ))
             )}
-            <Link href="/voluntariados" className="font-medium text-bosque underline">
+            <Link href="/#voluntariados" className="font-medium text-bosque underline">
               Ver voluntariados
             </Link>
           </section>
