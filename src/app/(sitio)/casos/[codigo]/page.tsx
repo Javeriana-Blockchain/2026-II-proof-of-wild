@@ -4,17 +4,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatAmount, formatDate } from "@/app/_lib/format";
 import { ContributionsTable } from "@/components/casos/ContributionsTable";
-import { StageTimeline } from "@/components/casos/StageTimeline";
+import { ApadrinarDialog } from "@/components/casos/ApadrinarDialog";
+import { PersonalizedTimeline } from "@/components/casos/PersonalizedTimeline";
 import { TransparencyPanel } from "@/components/casos/TransparencyPanel";
 import { IconoFlecha } from "@/components/iconos";
 import { buttonClass, Chip, ProgressBar } from "@/components/ui";
+import { getSession } from "@/app/_lib/session";
+import { getExplorerEnv } from "@/platform/config/env";
 import { getCatalogService } from "@/platform/container";
 
 export const dynamic = "force-dynamic";
 
 type Params = {
   params: Promise<{ codigo: string }>;
-  searchParams: Promise<{ pestana?: string }>;
+  searchParams: Promise<{ pestana?: string; apadrinar?: string }>;
 };
 
 const TABS = [
@@ -33,7 +36,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 /** Detalle del caso: la pantalla principal de la demo. Cabecera, historia, bloque de apoyo y tres pestañas. */
 export default async function CaseDetailPage({ params, searchParams }: Params) {
-  const [{ codigo }, { pestana }] = await Promise.all([params, searchParams]);
+  const [{ codigo }, { pestana, apadrinar }, session] = await Promise.all([params, searchParams, getSession()]);
   const detail = await getCatalogService().caseDetail(codigo);
   if (!detail) notFound();
 
@@ -113,9 +116,25 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
         ))}
       </nav>
 
-      {tab === "linea" ? <StageTimeline stages={detail.stages} /> : null}
+      {tab === "linea" ? <PersonalizedTimeline caseCode={detail.code} stages={detail.stages} /> : null}
       {tab === "transparencia" ? <TransparencyPanel transparency={detail.transparency} /> : null}
       {tab === "aportes" ? <ContributionsTable contributions={detail.contributions} /> : null}
+
+      {apadrinar === "1" && canSponsor ? (
+        <ApadrinarDialog
+          item={{
+            code: detail.code,
+            name,
+            ngoName: detail.ngo.name,
+            photoUrl: detail.photoUrl,
+            remaining: detail.remaining,
+            stages: detail.stages.map((s) => ({ position: s.position, name: s.name, cost: s.cost, covered: s.covered })),
+          }}
+          explorerBaseUrl={getExplorerEnv().EXPLORER_BASE_URL}
+          closeHref={`/casos/${detail.code}?pestana=${tab}`}
+          profileHref={session?.role === "persona" ? "/perfil" : null}
+        />
+      ) : null}
     </main>
   );
 }

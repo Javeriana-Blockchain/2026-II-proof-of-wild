@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSession, homeFor } from "@/app/_lib/session";
+import { WalletChip } from "@/components/billetera/WalletChip";
 import { buttonClass, TestnetBadge } from "@/components/ui";
 import { Logo } from "./Logo";
 import { NavLinks } from "./NavLinks";
@@ -18,6 +19,7 @@ export async function SiteHeader() {
         <NavLinks />
         <div className="flex items-center gap-4">
           <TestnetBadge />
+          <WalletChip profileHref={session?.role === "persona" ? "/perfil" : null} />
           {session ? (
             <Link href={homeFor(session)} className={buttonClass("primario", "py-2")}>
               <span aria-hidden className="h-2 w-2 rounded-full bg-salvia" />
