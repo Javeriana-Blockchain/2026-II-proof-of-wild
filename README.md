@@ -47,11 +47,14 @@ npm run dev               # http://localhost:3000
 | `npm run contrato:test` | Pruebas del contrato (`cargo test`) |
 | `npm run contrato:build` | WASM de release del contrato |
 | `npm run red:preparar` | Prepara toda la demo en testnet (ver arriba) |
+| `npm run red:probar` | Prueba de punta a punta en testnet con un contrato y una base desechables (no toca la demo) |
 | `npm run db:migrate` | Aplica las migraciones |
 | `npm run db:seed` | Carga ONG, proveedores, casos con etapas, donantes y voluntariados (sin actividad en la red) |
 | `npm run db:seed:activity` | Igual, con aportes, gastos e hitos de ejemplo con **hashes inventados**: solo para trabajar la interfaz sin red |
 
 Las pruebas de integración **vacían** la base de `TEST_DATABASE_URL`: usa una base distinta de la de la demo (`proofofwild_test`, ver `.env.example`). Se niegan a correr si apunta a la misma de `DATABASE_URL`.
+
+`red:probar` recorre el camino real del servidor en testnet sin tocar la demo: crea cuentas, un USDC de prueba y un contrato nuevos, usa la base de `TEST_DATABASE_URL`, y hace un aporte, un gasto con factura y un hito con foto firmando con llaves de prueba, como lo haría la billetera. Comprueba que el reparto previsto, el del contrato y el guardado coincidan, que el proveedor reciba el pago, que la factura y la foto publicadas tengan el hash del contrato, los rechazos (meta, etapa sin fondos, firma ajena, transacción cambiada) y que el catálogo, el comprobante y el perfil muestren lo mismo que `consultar_caso`. Tarda unos dos minutos.
 
 ## Contrato Proof of Wild
 
@@ -65,6 +68,7 @@ Amplía el contrato `RaizSilvestre` de la semana 3 (que sigue en el historial) c
 | `registrar_gasto(ong, caso, etapa, proveedor, monto, hash_factura)` | La ONG del caso | Le paga al proveedor desde lo cubierto y sin gastar de esa etapa y guarda el hash de la factura. Evento `gasto` |
 | `registrar_hito(ong, caso, etapa, hash_evidencia)` | La ONG del caso | Deja en la red el hash de la foto o documento. Evento `hito` |
 | `consultar_caso(caso)` | Cualquiera | Costo, cubierto y gastado de cada etapa, y saldo del caso |
+| `consultar_hito(caso, indice)` | Cualquiera | Etapa y hash de la evidencia de un hito |
 
 Toda función que mueve dinero o escribe datos exige la firma de quien la llama. La firma doble (ONG y validador) para los gastos queda para la etapa 2.
 
@@ -84,19 +88,20 @@ Toda función que mueve dinero o escribe datos exige la firma de quien la llama.
 | Registro de ONG como solicitud en revisión | Construido y probado en el navegador |
 | Perfil público de la ONG | Construido |
 | Voluntariados con su inscripción | Construido y probado en el navegador |
-| Ventana de apadrinar con la billetera y comprobante; «Tu aporte» por etapa | Por construir |
-| Perfil del donante con su insignia y página pública | Por construir |
-| Portal de la ONG con registrar gasto e hito | Por construir |
+| Ventana de apadrinar con la billetera y comprobante; «Tu aporte» por etapa | Construido; preparar y su vista previa probados con el contrato real |
+| Perfil del donante con su insignia «Huella verificada» y página pública | Construido y probado en el navegador |
+| Portal de la ONG con registrar gasto e hito | Construido; ventanas probadas en el navegador |
+| Aporte, gasto e hito de punta a punta en testnet (`red:probar`) | 27 comprobaciones pasan |
 
 ## Estructura
 
 ```text
 contracts/proof-of-wild/  Contrato Soroban (Rust) y sus pruebas
-scripts/                  Preparación de la red y de las imágenes
+scripts/                  Preparación de la red y de las imágenes, y prueba de punta a punta
 src/
   app/            Presentación (Next.js): páginas, layouts, acciones y rutas API
   components/     Componentes de interfaz
-  modules/        Dominio y aplicación por capacidad (cases, catalog, shared)
+  modules/        Dominio y aplicación por capacidad (cases, catalog, contributions, records, shared)
   ports/          Puertos que el dominio necesita del exterior
   platform/       Adaptadores: db, stellar (contrato y plan B clásico), storage, auth, config
   lib/            Utilidades sin lógica de negocio
