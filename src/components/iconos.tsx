@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 /** Íconos de línea del diseño. Heredan el color del texto. */
 type Props = { className?: string };
 
@@ -67,6 +69,87 @@ export function IconoFlecha({ className = "h-4 w-4", izquierda = false }: Props 
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+/** Tipo de etapa según su nombre: un solo juego de pictogramas para todos los casos. */
+export type StageKind = "examen" | "medicina" | "alimento" | "recinto" | "entrenamiento" | "liberacion";
+
+export function stageKind(name: string): StageKind {
+  const n = name.toLowerCase();
+  if (/liberaci|reserva|traslado|seguimiento/.test(n)) return "liberacion";
+  if (/entrenamiento|rehabilitaci|vuelo|exterior|adaptaci/.test(n)) return "entrenamiento";
+  if (/recinto|estanque|cuidados/.test(n)) return "recinto";
+  if (/aliment|dieta|leche|vitamin|calcio|crecimiento/.test(n)) return "alimento";
+  if (/valoraci|examen|desparasit/.test(n)) return "examen";
+  return "medicina";
+}
+
+const STAGE_PATHS: Record<StageKind, ReactNode> = {
+  examen: (
+    <>
+      <path d="M9 4h6v3H9z" strokeLinejoin="round" />
+      <path d="M7 5.5H5.5V20h13V5.5H17" strokeLinejoin="round" />
+      <path d="m9 13 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  medicina: (
+    <>
+      <rect x="3.5" y="8.5" width="17" height="7" rx="3.5" transform="rotate(-35 12 12)" />
+      <path d="m10.1 9.3 3.8 5.4" strokeLinecap="round" />
+    </>
+  ),
+  alimento: (
+    <>
+      <path d="M5 19c0-8 5-13 14-14-.5 9-5.5 14-14 14Z" strokeLinejoin="round" />
+      <path d="M5 19 13 11" strokeLinecap="round" />
+    </>
+  ),
+  recinto: (
+    <>
+      <path d="M4 20V10l8-5 8 5v10" strokeLinejoin="round" />
+      <path d="M8 20v-6M12 20v-6M16 20v-6M4 14h16" strokeLinecap="round" />
+    </>
+  ),
+  entrenamiento: (
+    <>
+      <path d="M3 15c5 0 9-3 11-9 1.5 4 .5 8-2 10.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 18.5c4 .3 8.5-.8 12-5.5 1.5 1.8 2 3.6 1.6 5.5" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  liberacion: (
+    <>
+      <path d="m2.5 19 6.5-10 4.2 6.4L15.5 12l6 7z" strokeLinejoin="round" />
+      <circle cx="17.5" cy="6" r="2" />
+    </>
+  ),
+};
+
+export function IconoEtapa({ kind, className = "h-5 w-5" }: Props & { kind: StageKind }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden className={className}>
+      {STAGE_PATHS[kind]}
+    </svg>
+  );
+}
+
+export function IconoMenu({ className = base, abierto = false }: Props & { abierto?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden className={className}>
+      {abierto ? (
+        <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+      ) : (
+        <path d="M4 7h16M4 12h16M4 17h10" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
+export function IconoMas({ className = "h-5 w-5" }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden className={className}>
+      <path d="M12 5v14M5 12h14" strokeLinecap="round" />
     </svg>
   );
 }

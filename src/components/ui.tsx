@@ -1,17 +1,33 @@
 import type { ReactNode } from "react";
 import { VALIDATION_LABELS } from "@/app/_lib/labels";
 import type { ValidationLevel } from "@/modules/catalog";
+import { ContourField } from "./mapa/ContourField";
 
-/** Estilos de botón del diseño (página 22): principal, secundario con borde, arena y desactivado. */
+/**
+ * Botones con forma de placa de sendero (esquinas de letrero, no píldora). Suben al pasar el mouse, se hunden al
+ * hacer clic y rebotan un poco al soltar. Bajo «reducir movimiento» solo cambian de color (.mov-hover).
+ */
 const BUTTONS = {
-  primario: "bg-bosque text-white hover:bg-profundo",
-  secundario: "border border-bosque bg-white text-bosque hover:bg-crema",
-  arena: "bg-arena text-texto hover:brightness-95",
-  contorno: "border border-white/70 text-white hover:bg-white/10",
+  primario:
+    "bg-bosque text-white hover:bg-profundo hover:shadow-[0_10px_22px_-10px_rgb(44_79_51/0.65)] focus-visible:outline-bosque",
+  secundario:
+    "border-2 border-bosque bg-white text-bosque hover:bg-bosque hover:text-white hover:shadow-[0_10px_22px_-12px_rgb(44_79_51/0.55)]",
+  arena:
+    "bg-arena text-texto hover:bg-[#cfb684] hover:shadow-[0_10px_22px_-12px_rgb(31_42_34/0.45)] focus-visible:outline-crema",
+  contorno: "border-2 border-white/70 text-white hover:border-white hover:bg-white/10 focus-visible:outline-crema",
 } as const;
 
-export function buttonClass(variant: keyof typeof BUTTONS = "primario", extra = ""): string {
-  return `inline-flex items-center justify-center gap-2 rounded-full px-6 py-2.5 font-semibold transition disabled:cursor-not-allowed disabled:border-arena disabled:bg-gris disabled:text-secundario ${BUTTONS[variant]} ${extra}`;
+export type ButtonVariant = keyof typeof BUTTONS;
+
+export function buttonClass(variant: ButtonVariant = "primario", extra = ""): string {
+  return [
+    "mov-hover inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold leading-tight",
+    "transition-[transform,background-color,box-shadow,color,border-color] duration-200 ease-(--ease-spring)",
+    "hover:-translate-y-0.5 active:translate-y-px active:scale-[0.97] active:duration-75",
+    "disabled:pointer-events-none disabled:cursor-not-allowed disabled:border-arena disabled:bg-gris disabled:text-secundario disabled:shadow-none",
+    BUTTONS[variant],
+    extra,
+  ].join(" ");
 }
 
 const CHIP_TONES = {
@@ -29,9 +45,12 @@ const CHIP_TONES = {
 
 export type ChipTone = keyof typeof CHIP_TONES;
 
+/** Rótulo de leyenda del mapa: versalitas condensadas sobre una placa pequeña. */
 export function Chip({ tone = "etapa", children, className = "" }: { tone?: ChipTone; children: ReactNode; className?: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-sm font-semibold ${CHIP_TONES[tone]} ${className}`}>
+    <span
+      className={`rotulo inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 leading-none whitespace-nowrap ${CHIP_TONES[tone]} ${className}`}
+    >
       {children}
     </span>
   );
@@ -44,17 +63,22 @@ export function ValidationChip({ level, short = false }: { level: ValidationLeve
   return <Chip tone={tone}>{short ? label.short : label.long}</Chip>;
 }
 
+/** Barra de lo cubierto: una regla de mapa con el tramo recorrido en bosque. */
 export function ProgressBar({ percent, label = "Porcentaje recaudado", className = "" }: { percent: number; label?: string; className?: string }) {
+  const value = Math.max(0, Math.min(100, percent));
   return (
     <div
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={percent}
+      aria-valuenow={Math.round(value)}
       aria-label={label}
-      className={`h-2 w-full overflow-hidden rounded-full bg-crema ${className}`}
+      className={`relative h-2.5 w-full overflow-hidden rounded-full bg-arena/45 ${className}`}
     >
-      <div className="h-full rounded-full bg-bosque" style={{ width: `${percent}%` }} />
+      <div
+        className="h-full rounded-full bg-bosque transition-[width] duration-700 ease-(--ease-out-expo)"
+        style={{ width: `${value}%` }}
+      />
     </div>
   );
 }
@@ -62,8 +86,12 @@ export function ProgressBar({ percent, label = "Porcentaje recaudado", className
 /** Enlace a la transacción en Stellar Expert. Abre en otra pestaña. */
 export function ExplorerLink({ href, children = "Stellar Expert" }: { href: string; children?: ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="font-medium text-bosque underline underline-offset-2">
+    <a href={href} target="_blank" rel="noreferrer" className="enlace inline-flex items-center gap-1">
       {children}
+      <svg viewBox="0 0 24 24" aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2">
+        <path d="M7 17 17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="sr-only">(abre en otra pestaña)</span>
     </a>
   );
 }
@@ -71,9 +99,66 @@ export function ExplorerLink({ href, children = "Stellar Expert" }: { href: stri
 export function TestnetBadge({ dark = false }: { dark?: boolean }) {
   return (
     <span
-      className={`rounded-full border px-3 py-1 text-xs font-semibold ${dark ? "border-white/40 text-white" : "border-arena text-secundario"}`}
+      className={`rotulo inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 leading-none ${dark ? "border-white/40 text-white" : "border-arena bg-white/60 text-secundario"}`}
     >
+      <span aria-hidden className={`h-1.5 w-1.5 animate-brillo rounded-full ${dark ? "bg-salvia" : "bg-bosque"}`} />
       Demo en testnet
     </span>
   );
+}
+
+/** Indicador de carga para botones y paneles. */
+export function Spinner({ className = "h-4 w-4", label }: { className?: string; label?: string }) {
+  return (
+    <span role={label ? "status" : undefined} className="inline-flex items-center gap-2">
+      <svg viewBox="0 0 24 24" aria-hidden className={`animate-giro ${className}`} fill="none">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+      {label ? <span>{label}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * Estado vacío: una esquina de mapa sin ruta todavía, el mensaje y, si hay, la acción para seguir.
+ */
+export function EmptyState({
+  title,
+  children,
+  action,
+  tone = "claro",
+  className = "",
+}: {
+  title: string;
+  children?: ReactNode;
+  action?: ReactNode;
+  tone?: "claro" | "oscuro";
+  className?: string;
+}) {
+  const dark = tone === "oscuro";
+  return (
+    <div
+      data-reveal="pop"
+      className={`relative isolate overflow-hidden rounded-[28px] px-6 py-12 text-center sm:px-12 ${dark ? "bg-profundo text-white" : "bg-white"} ${className}`}
+    >
+      <ContourField
+        variant={dark ? "noche" : "papel"}
+        seed={7}
+        className="pointer-events-none absolute inset-0 -z-10 h-full w-full opacity-70"
+      />
+      <svg viewBox="0 0 64 64" aria-hidden className={`mx-auto h-14 w-14 ${dark ? "text-salvia" : "text-bosque"}`} fill="none">
+        <circle cx="32" cy="32" r="22" stroke="currentColor" strokeWidth="2.5" strokeDasharray="5 6" />
+        <circle cx="32" cy="32" r="6" fill="currentColor" />
+      </svg>
+      <p className={`mt-4 font-display text-2xl font-semibold ${dark ? "text-white" : "text-texto"}`}>{title}</p>
+      {children ? <div className={`mx-auto mt-2 max-w-md ${dark ? "text-white/85" : "text-secundario"}`}>{children}</div> : null}
+      {action ? <div className="mt-6 flex flex-wrap justify-center gap-3">{action}</div> : null}
+    </div>
+  );
+}
+
+/** Bloque de carga: una banda del mapa que respira mientras llegan los datos. */
+export function Skeleton({ className = "" }: { className?: string }) {
+  return <div aria-hidden className={`animate-brillo rounded-2xl bg-arena/45 ${className}`} />;
 }

@@ -10,6 +10,7 @@ export type {
   PublicStage,
   PublicStageExpense,
   PublicStageMilestone,
+  RouteStage,
 } from "./service";
 export type {
   AnimalGroup,

@@ -17,6 +17,16 @@ export interface CaseChip {
   tone: "etapa" | "logro" | "reserva";
 }
 
+/** Una etapa vista en el mapa: lo cubierto frente a su costo y su estado. */
+export interface RouteStage {
+  position: number;
+  name: string;
+  shortName: string;
+  cost: string;
+  covered: string;
+  status: StageStatus;
+}
+
 export interface PublicCaseSummary {
   code: string;
   /** Nombre común. Nulo si no es seguro divulgar la especie (RN-05). */
@@ -36,6 +46,8 @@ export interface PublicCaseSummary {
   raised: string;
   remaining: string;
   progressPercent: number;
+  /** La ruta del tratamiento, etapa por etapa, para dibujarla en el mapa. */
+  route: RouteStage[];
 }
 
 export interface PublicStageExpense {
@@ -58,6 +70,7 @@ export interface PublicStageMilestone {
 export interface PublicStage {
   position: number;
   name: string;
+  shortName: string;
   covers: string | null;
   cost: string;
   covered: string;
@@ -173,6 +186,7 @@ export class CatalogService {
       const result: PublicStage = {
         position: stage.position,
         name: stage.name,
+        shortName: stage.shortName,
         covers: stage.covers,
         cost: normalize(stage.cost),
         covered: normalize(covered),
@@ -311,6 +325,14 @@ export class CatalogService {
       raised,
       remaining: remainingToGoal(funding),
       progressPercent: fundingProgress(goal, raised),
+      route: ordered.map((s) => ({
+        position: s.position,
+        name: s.name,
+        shortName: s.shortName,
+        cost: normalize(s.cost),
+        covered: normalize(coveredByStage[s.id] ?? "0"),
+        status: statuses.get(s.position)!,
+      })),
     };
   }
 }
