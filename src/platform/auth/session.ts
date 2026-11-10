@@ -1,46 +1,85 @@
-import { jwtVerify, SignJWT } from "jose";
-import type { Actor, Role } from "@/modules/shared/actor";
+import { createHash, randomBytes } from "node:crypto";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import type { Db } from "@/platform/db/client";
+import { ngos, personProfiles, sessions, users } from "@/platform/db/schema";
 
-export const SESSION_COOKIE = "pow_session";
-export const SESSION_TTL_SECONDS = 60 * 60 * 8;
+export const SESSION_COOKIE = "pow_sesion";
+export const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
-const ROLES: readonly Role[] = ["center", "validator", "admin"];
+export type Role = (typeof users.$inferSelect)["role"];
 
-function key(secret: string): Uint8Array {
-  return new TextEncoder().encode(secret);
+/** Usuario de la sesión, con lo necesario para el menú y para autorizar operaciones. */
+export interface SessionUser {
+  userId: string;
+  email: string;
+  role: Role;
+  /** Alias de la persona o nombre de la ONG; si aún no hay perfil, el correo. */
+  displayName: string;
+  /** ONG del usuario, si tiene una registrada. */
+  ngoId: string | null;
+  ngoStatus: (typeof ngos.$inferSelect)["status"] | null;
+  /** Billetera registrada en su perfil (persona) o cuenta de la ONG. */
+  stellarAccount: string | null;
+  profileCompleted: boolean;
 }
 
-/** Crea el token de sesión (JWT firmado HS256) para un usuario del portal. */
-export async function createSessionToken(
-  actor: Actor,
-  secret: string,
-  ttlSeconds = SESSION_TTL_SECONDS,
-): Promise<string> {
-  return new SignJWT({
-    role: actor.role,
-    centerId: actor.centerId,
-    stellarAccount: actor.stellarAccount,
-  })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(actor.userId)
-    .setIssuedAt()
-    .setExpirationTime(`${ttlSeconds}s`)
-    .sign(key(secret));
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
-/** Devuelve el usuario de la sesión, o nulo si el token es inválido, está alterado o venció. */
-export async function readSessionToken(token: string, secret: string): Promise<Actor | null> {
-  try {
-    const { payload } = await jwtVerify(token, key(secret), { algorithms: ["HS256"] });
-    const role = payload.role as Role;
-    if (!payload.sub || !ROLES.includes(role)) return null;
-    return {
-      userId: payload.sub,
-      role,
-      centerId: (payload.centerId as string | null) ?? null,
-      stellarAccount: (payload.stellarAccount as string | null) ?? null,
-    };
-  } catch {
-    return null;
-  }
+/** Crea la sesión y devuelve el token para la cookie. En la base solo queda SHA-256(token). */
+export async function createSession(db: Db, userId: string, now = new Date()) {
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
+  await db.insert(sessions).values({ userId, tokenHash: hashToken(token), expiresAt });
+  return { token, expiresAt };
+}
+
+/** Sesión vigente (no cerrada, no vencida y de un usuario activo), o nulo. */
+export async function findSessionUser(db: Db, token: string): Promise<SessionUser | null> {
+  const [row] = await db
+    .select({
+      userId: users.id,
+      email: users.email,
+      role: users.role,
+      alias: personProfiles.alias,
+      profileCompletedAt: personProfiles.completedAt,
+      personAccount: personProfiles.stellarAccount,
+      ngoId: ngos.id,
+      ngoName: ngos.name,
+      ngoStatus: ngos.status,
+      ngoAccount: ngos.stellarAccount,
+    })
+    .from(sessions)
+    .innerJoin(users, eq(users.id, sessions.userId))
+    .leftJoin(personProfiles, eq(personProfiles.userId, users.id))
+    .leftJoin(ngos, eq(ngos.userId, users.id))
+    .where(
+      and(
+        eq(sessions.tokenHash, hashToken(token)),
+        isNull(sessions.closedAt),
+        gt(sessions.expiresAt, new Date()),
+        eq(users.active, true),
+      ),
+    )
+    .limit(1);
+  if (!row) return null;
+
+  return {
+    userId: row.userId,
+    email: row.email,
+    role: row.role,
+    displayName: row.ngoName ?? row.alias ?? row.email,
+    ngoId: row.ngoId,
+    ngoStatus: row.ngoStatus,
+    stellarAccount: row.ngoAccount ?? row.personAccount,
+    profileCompleted: row.role !== "persona" || row.profileCompletedAt !== null,
+  };
+}
+
+export async function closeSession(db: Db, token: string): Promise<void> {
+  await db
+    .update(sessions)
+    .set({ closedAt: new Date() })
+    .where(and(eq(sessions.tokenHash, hashToken(token)), isNull(sessions.closedAt)));
 }
