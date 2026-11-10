@@ -1,0 +1,171 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { drizzle } from "drizzle-orm/postgres-js";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import postgres from "postgres";
+import * as srpClient from "secure-remote-password/client";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { CatalogService } from "@/modules/catalog";
+import {
+  createSession,
+  findSessionUser,
+  finishLogin,
+  registerAccount,
+  startLogin,
+  TooManyAttemptsError,
+} from "@/platform/auth";
+import type { Db } from "@/platform/db/client";
+import { DbCatalogReader } from "@/platform/db/repositories/catalog";
+import * as schema from "@/platform/db/schema";
+import { resetDemo, seedDemo } from "@/platform/db/seed-demo";
+import { LocalEvidenceStorage } from "@/platform/storage/local-storage";
+
+/**
+ * Pruebas contra PostgreSQL real. VACÍAN la base de TEST_DATABASE_URL: debe ser una base desechable,
+ * distinta de la de la demo. Sin TEST_DATABASE_URL se omiten.
+ */
+const url = process.env.TEST_DATABASE_URL;
+const SECRET = "s".repeat(40);
+
+describe.skipIf(!url)("integración con PostgreSQL", () => {
+  let client: postgres.Sql;
+  let db: Db;
+  let evidenceDir: string;
+  let catalog: CatalogService;
+
+  beforeAll(async () => {
+    if (url === process.env.DATABASE_URL) {
+      throw new Error("TEST_DATABASE_URL no puede ser la misma base de la demo: estas pruebas la vacían.");
+    }
+    client = postgres(url!, { max: 4, onnotice: () => {} });
+    db = drizzle(client, { schema }) as unknown as Db;
+    await migrate(db, { migrationsFolder: "drizzle" });
+    await resetDemo(db);
+    evidenceDir = await mkdtemp(path.join(os.tmpdir(), "pow-it-"));
+    const storage = new LocalEvidenceStorage(evidenceDir);
+    await seedDemo(db, { password: "clave-de-prueba", withActivity: true, storage, today: "2026-11-10" });
+    catalog = new CatalogService(new DbCatalogReader(db), {
+      explorerBaseUrl: "https://stellar.expert/explorer/testnet",
+      evidenceUrl: (k) => (k.startsWith("/") ? k : storage.publicUrl(k)),
+    });
+  }, 60_000);
+
+  afterAll(async () => {
+    await client?.end();
+    if (evidenceDir) await rm(evidenceDir, { recursive: true, force: true });
+  });
+
+  describe("catálogo público", () => {
+    it("lista primero los casos en tratamiento y después los recuperados", async () => {
+      const cases = await catalog.listCases();
+      expect(cases.map((c) => c.code)).toEqual(["POW_001", "POW_002", "POW_003", "POW_004", "POW_005"]);
+      expect(cases.map((c) => c.recovered)).toEqual([false, false, true, true, true]);
+      expect(cases[0]).toMatchObject({ raised: "0.0000000", goal: "150.0000000", chip: { label: "Cuidados especiales" } });
+    });
+
+    it("el detalle cuadra con los datos de prueba: tortuga con 35 recibidos, 25 gastados y 10 disponibles", async () => {
+      const d = (await catalog.caseDetail("POW_002"))!;
+      expect(d.transparency).toMatchObject({ received: "35.0000000", spent: "25.0000000", available: "10.0000000" });
+      expect(d.stages.map((s) => [s.covered, s.cost])).toEqual([
+        ["25.0000000", "25.0000000"],
+        ["10.0000000", "35.0000000"],
+        ["0.0000000", "20.0000000"],
+        ["0.0000000", "10.0000000"],
+      ]);
+      expect(d.stages[2]!.waitingForPrevious).toBe(true);
+      expect(d.contributions).toHaveLength(2);
+      expect(d.transparency.expenses[0]).toMatchObject({ providerName: "Clínica Veterinaria Sabana", invoiceNumber: "FV-0388" });
+    });
+
+    it("no expone identificadores internos, correos, NIT ni teléfonos", async () => {
+      const json = JSON.stringify([await catalog.caseDetail("POW_004"), await catalog.listCases()]);
+      const internalIds = [
+        ...(await db.select({ id: schema.cases.id }).from(schema.cases)),
+        ...(await db.select({ id: schema.stages.id }).from(schema.stages)),
+        ...(await db.select({ id: schema.ngos.id }).from(schema.ngos)),
+        ...(await db.select({ id: schema.users.id }).from(schema.users)),
+        ...(await db.select({ id: schema.providers.id }).from(schema.providers)),
+      ].map((r) => r.id);
+      for (const id of internalIds) expect(json).not.toContain(id);
+      expect(json).not.toContain("@");
+      expect(json).not.toContain("900.000");
+      expect(json).not.toContain("+57");
+    });
+
+    it("devuelve nulo para un código inexistente o con formato inválido", async () => {
+      expect(await catalog.caseDetail("POW_999")).toBeNull();
+      expect(await catalog.caseDetail("POW-001")).toBeNull();
+    });
+  });
+
+  describe("reglas en la base de datos", () => {
+    it("un aporte confirmado necesita fecha de confirmación y un código de caso válido", async () => {
+      const [c] = await db.select({ id: schema.cases.id }).from(schema.cases).limit(1);
+      await expect(
+        db.insert(schema.contributions).values({
+          caseId: c!.id,
+          donorAccount: "G" + "A".repeat(55),
+          amount: "1",
+          txHash: "a".repeat(64),
+          status: "confirmada",
+        }),
+      ).rejects.toThrow();
+      await expect(
+        db.execute(`update cases set code = 'POW-001' where id = '${c!.id}'`),
+      ).rejects.toThrow();
+    });
+  });
+
+  describe("cuentas con SRP-6a", () => {
+    const email = "Ana.M@Demo.Example";
+    const password = "una-clave-larga";
+
+    async function login(pass: string, mail = email) {
+      const user = mail.trim().toLowerCase();
+      const eph = srpClient.generateEphemeral();
+      const challenge = await startLogin(db, mail, eph.public, SECRET);
+      const key = srpClient.derivePrivateKey(challenge.salt, user, pass);
+      const session = srpClient.deriveSession(eph.secret, challenge.serverPublic, challenge.salt, user, key);
+      const result = await finishLogin(db, challenge.challengeId, session.proof, SECRET);
+      if (result) srpClient.verifySession(eph.public, session, result.serverProof);
+      return { result, challenge, proof: session.proof };
+    }
+
+    beforeAll(async () => {
+      const user = email.toLowerCase();
+      const salt = srpClient.generateSalt();
+      const verifier = srpClient.deriveVerifier(srpClient.derivePrivateKey(salt, user, password));
+      await registerAccount(db, { email, role: "persona", salt, verifier });
+    });
+
+    it("la base de datos guarda la sal y el verificador, nunca la contraseña", async () => {
+      const rows = await db.select().from(schema.users);
+      expect(JSON.stringify(rows)).not.toContain(password);
+    });
+
+    it("inicia sesión con la contraseña correcta y el navegador verifica al servidor (M2)", async () => {
+      const { result } = await login(password);
+      expect(result?.role).toBe("persona");
+      const { token } = await createSession(db, result!.userId);
+      const user = await findSessionUser(db, token);
+      expect(user).toMatchObject({ email: "ana.m@demo.example", role: "persona", profileCompleted: false });
+    });
+
+    it("un desafío se usa una sola vez", async () => {
+      const { challenge, proof } = await login(password);
+      expect(await finishLogin(db, challenge.challengeId, proof, SECRET)).toBeNull();
+    });
+
+    it("un correo inexistente recibe un señuelo con el mismo formato y nunca entra", async () => {
+      const { result, challenge } = await login(password, "nadie@demo.example");
+      expect(challenge.salt).toMatch(/^[0-9a-f]{64}$/);
+      expect(result).toBeNull();
+    });
+
+    it("bloquea el inicio de sesión tras 5 intentos fallidos en 15 minutos", async () => {
+      for (let i = 0; i < 5; i++) expect((await login("clave-incorrecta")).result).toBeNull();
+      await expect(login(password)).rejects.toThrow(TooManyAttemptsError);
+    });
+  });
+});
