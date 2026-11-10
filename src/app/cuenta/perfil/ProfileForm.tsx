@@ -49,7 +49,8 @@ export function ProfileForm({ email, initial }: { email: string; initial: Profil
     router.refresh();
   }
 
-  const roles = [data.wantsToDonate ? "Donante" : null, data.wantsToVolunteer ? "Voluntaria" : null, data.city || null]
+  // Sin suponer el género de la persona: «Voluntariado» en vez de «Voluntaria» o «Voluntario».
+  const roles = [data.wantsToDonate ? "Donante" : null, data.wantsToVolunteer ? "Voluntariado" : null, data.city || null]
     .filter(Boolean)
     .join(" · ");
 
