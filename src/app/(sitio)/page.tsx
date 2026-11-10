@@ -27,21 +27,18 @@ const CAMINOS = [
     texto: "Apadrina un caso y ve en qué se usa cada dólar de tu aporte.",
     accion: "Quiero ser donante",
     href: "/casos",
-    variante: "arena" as const,
   },
   {
     titulo: "Para ONG",
     texto: "Visibilidad y credibilidad para recibir aportes.",
     accion: "Soy ONG y quiero aparecer",
     href: "/ong/registro",
-    variante: "contorno" as const,
   },
   {
     titulo: "Para voluntarios",
     texto: "Ayuda con tu tiempo en una fundación.",
     accion: "Quiero ser voluntario",
     href: "/voluntariados",
-    variante: "contorno" as const,
   },
 ];
 
@@ -70,7 +67,7 @@ export default async function InicioPage() {
               <div key={c.titulo} className="flex flex-col rounded-2xl border border-white/25 bg-white/10 p-5">
                 <h2 className="font-sans text-lg font-semibold">{c.titulo}</h2>
                 <p className="mt-2 flex-1 text-white/85">{c.texto}</p>
-                <Link href={c.href} className={buttonClass(c.variante, "mt-4 w-full text-center")}>
+                <Link href={c.href} className={buttonClass("arena", "mt-4 w-full text-center")}>
                   {c.accion}
                 </Link>
               </div>
