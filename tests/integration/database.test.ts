@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import * as srpClient from "secure-remote-password/client";
+import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { CatalogService } from "@/modules/catalog";
 import {
@@ -19,6 +20,8 @@ import type { Db } from "@/platform/db/client";
 import { DbCatalogReader } from "@/platform/db/repositories/catalog";
 import * as schema from "@/platform/db/schema";
 import { resetDemo, seedDemo } from "@/platform/db/seed-demo";
+import { sha256Hex } from "@/lib/hash";
+import { DbEvidenceStorage } from "@/platform/storage/db-storage";
 import { LocalEvidenceStorage } from "@/platform/storage/local-storage";
 
 /**
@@ -114,6 +117,32 @@ describe.skipIf(!url)("integración con PostgreSQL", () => {
       await expect(
         db.execute(`update cases set code = 'POW-001' where id = '${c!.id}'`),
       ).rejects.toThrow();
+    });
+  });
+
+  describe("evidencias guardadas en la base de datos", () => {
+    it("guarda un PDF tal cual y lo devuelve con el mismo hash", async () => {
+      const storage = new DbEvidenceStorage(db);
+      const pdf = new TextEncoder().encode("%PDF-1.4 factura de prueba");
+      const stored = await storage.save({ data: pdf, contentType: "application/pdf" });
+      expect(stored.key).toMatch(/^[0-9a-f-]{36}\.pdf$/);
+      expect(stored.sha256).toBe(await sha256Hex(pdf));
+      expect(await storage.read(stored.key)).toEqual(pdf);
+      expect(storage.publicUrl(stored.key)).toBe(`/api/evidencias/${stored.key}`);
+    });
+
+    it("guarda las imágenes sin EXIF y rechaza claves desconocidas o con rutas", async () => {
+      const storage = new DbEvidenceStorage(db);
+      const jpeg = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#386641" } })
+        .jpeg()
+        .withExif({ IFD0: { Artist: "persona" } })
+        .toBuffer();
+      const stored = await storage.save({ data: new Uint8Array(jpeg), contentType: "image/jpeg" });
+      const saved = await storage.read(stored.key);
+      expect((await sharp(saved).metadata()).exif).toBeUndefined();
+      expect(stored.sha256).toBe(await sha256Hex(saved));
+      await expect(storage.read("00000000-0000-0000-0000-000000000000.pdf")).rejects.toThrow(RangeError);
+      await expect(storage.read("../secreto.pdf")).rejects.toThrow(RangeError);
     });
   });
 

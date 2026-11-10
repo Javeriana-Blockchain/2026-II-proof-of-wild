@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   date,
   index,
   integer,
@@ -436,6 +437,32 @@ export const enrollments = pgTable(
     createdAt: createdAt(),
   },
   (t) => [unique("enrollments_volunteering_email_uq").on(t.volunteeringId, t.email)],
+);
+
+// ---------------------------------------------------------------------------
+// Evidencias publicadas (facturas y fotos de hitos)
+// ---------------------------------------------------------------------------
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
+
+/**
+ * Archivos de evidencia guardados en la base de datos. Así funcionan igual en local y en un servidor sin
+ * disco persistente (Vercel). Las imágenes ya vienen sin metadatos; `sha256` es el hash que quedó en la red.
+ */
+export const evidenceFiles = pgTable(
+  "evidence_files",
+  {
+    key: text("key").primaryKey(),
+    contentType: text("content_type").notNull(),
+    sha256: text("sha256").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    data: bytea("data").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("evidence_files_sha256", hex64(t.sha256)),
+    check("evidence_files_key", sql`${t.key} ~ '^[0-9a-f-]{36}\\.[a-z]{2,4}$'`),
+  ],
 );
 
 export const auditLog = pgTable(

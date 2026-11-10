@@ -73,7 +73,7 @@ function credentials(email: string, password: string) {
 /** Borra todos los datos. Solo para la base de datos local de la demo o de pruebas. */
 export async function resetDemo(db: Db): Promise<void> {
   await db.execute(sql`TRUNCATE
-    audit_log, enrollments, volunteerings, contribution_allocations, contributions, expenses, milestones,
+    evidence_files, audit_log, enrollments, volunteerings, contribution_allocations, contributions, expenses, milestones,
     stages, cases, provider_ngos, providers, donors, ngos, sessions, auth_challenges, person_profiles, users
     CASCADE`);
 }

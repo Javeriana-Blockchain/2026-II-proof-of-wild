@@ -64,6 +64,7 @@ export const getSessionEnv = lazy(
 export const getStorageEnv = lazy(
   "almacén de evidencias",
   z.object({
+    EVIDENCE_STORAGE: z.enum(["db", "local"]).default("db"),
     EVIDENCE_DIR: z.string().min(1).default("./.data/evidence"),
   }),
 );
