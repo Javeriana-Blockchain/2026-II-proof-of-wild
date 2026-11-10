@@ -36,6 +36,17 @@ export const getStellarEnv = lazy(
   }),
 );
 
+/** Contrato Proof of Wild en Soroban. Lo escribe en .env el script `npm run red:preparar`. */
+export const getContractEnv = lazy(
+  "contrato",
+  z.object({
+    SOROBAN_RPC_URL: z.url().default("https://soroban-testnet.stellar.org"),
+    NETWORK_PASSPHRASE: z.string().min(1).default("Test SDF Network ; September 2015"),
+    CONTRACT_ID: z.string().regex(/^C[A-Z2-7]{55}$/, "debe ser el id del contrato (C…); corre npm run red:preparar"),
+    ASSET_CODE: z.string().min(1).max(12).default("USDC"),
+  }),
+);
+
 export const getExplorerEnv = lazy(
   "explorador de bloques",
   z.object({
