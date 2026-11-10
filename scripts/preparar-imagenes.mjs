@@ -5,10 +5,12 @@
  *
  * - Re-codifica cada foto en WebP sin metadatos (EXIF con GPS incluido; RN-06) y la limita a 1600 px.
  * - Recorta la foto de Fundación Bosque Vivo para que no salga ninguna persona.
- * - Extrae el oso del centro del boceto del logo y le quita el fondo blanco (solo la silueta).
+ * - Logo: usa `logo-oso.png` (la silueta con fondo transparente que entrega el equipo). Si no está, extrae
+ *   el oso del centro del boceto y le quita el fondo blanco.
  *
  * Es idempotente: se puede volver a correr cuando lleguen mejores versiones de las imágenes.
  */
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
@@ -53,10 +55,10 @@ async function prepararFoto({ de, a, recorte }) {
 }
 
 /**
- * Logo: el oso de la mitad del boceto (el que mira de frente). Se quita solo el fondo blanco exterior:
+ * Respaldo: el oso de la mitad del boceto (el que mira de frente). Se quita solo el fondo blanco exterior:
  * las marcas blancas de la cara y del pecho quedan como parte del dibujo.
  */
-async function prepararLogo() {
+async function extraerOsoDelBoceto() {
   const RECORTE = { left: 375, top: 115, width: 285, height: 300 };
   const { data, info } = await sharp(path.join(origen, "WhatsApp Image 2026-11-08 at 9.09.00 PM.jpeg"))
     .extract(RECORTE)
@@ -136,10 +138,26 @@ async function prepararLogo() {
     }
   }
 
+  return sharp(rgba, { raw: { width: w, height: h, channels: 4 } })
+    .trim({ threshold: 1 })
+    .png()
+    .toBuffer();
+}
+
+/** Silueta del logo: la versión transparente del equipo si existe; si no, la extraída del boceto. */
+async function prepararLogo() {
+  const transparente = path.join(origen, "logo-oso.png");
+  let recortada;
+  if (existsSync(transparente)) {
+    const meta = await sharp(transparente).metadata();
+    if (!meta.hasAlpha) throw new Error("logo-oso.png debe tener fondo transparente (PNG con canal alfa).");
+    recortada = await sharp(transparente).trim({ threshold: 1 }).png().toBuffer();
+  } else {
+    recortada = await extraerOsoDelBoceto();
+  }
+
   const dir = path.join(publico, "marca");
   await mkdir(dir, { recursive: true });
-  const silueta = sharp(rgba, { raw: { width: w, height: h, channels: 4 } }).trim({ threshold: 1 });
-  const recortada = await silueta.png().toBuffer();
   await sharp(recortada).png().toFile(path.join(dir, "logo-oso.png"));
 
   // Ícono de la pestaña: el oso centrado en un cuadrado transparente.
