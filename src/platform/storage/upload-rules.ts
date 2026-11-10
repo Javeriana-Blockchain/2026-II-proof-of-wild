@@ -1,4 +1,5 @@
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/** 4 MB: Vercel no acepta cuerpos de más de 4,5 MB en sus funciones. */
+export const MAX_UPLOAD_BYTES = 4 * 1024 * 1024;
 
 export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const ALLOWED_TYPES = [...IMAGE_TYPES, "application/pdf"] as const;
@@ -27,6 +28,6 @@ export function assertAllowedUpload(contentType: string, sizeBytes: number): voi
     throw new RangeError("El archivo está vacío.");
   }
   if (sizeBytes > MAX_UPLOAD_BYTES) {
-    throw new RangeError("El archivo supera el tamaño máximo de 10 MB.");
+    throw new RangeError("El archivo supera el tamaño máximo de 4 MB.");
   }
 }

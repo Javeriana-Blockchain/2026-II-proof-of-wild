@@ -1,9 +1,11 @@
 import { CatalogService } from "@/modules/catalog";
 import { ContributionService } from "@/modules/contributions";
+import { RecordService } from "@/modules/records";
 import { getContractEnv, getExplorerEnv } from "@/platform/config/env";
 import { getDb } from "@/platform/db/client";
 import { DbCatalogReader } from "@/platform/db/repositories/catalog";
 import { DbContributionStore } from "@/platform/db/repositories/contributions";
+import { DbRecordStore } from "@/platform/db/repositories/records";
 import { SorobanContractLedger } from "@/platform/stellar/contract-ledger";
 import { createEvidenceStorage } from "@/platform/storage";
 
@@ -44,4 +46,8 @@ export const getContractLedger = once(() => {
 
 export const getContributionService = once(
   () => new ContributionService(getContractLedger(), new DbContributionStore(getDb())),
+);
+
+export const getRecordService = once(
+  () => new RecordService(getContractLedger(), new DbRecordStore(getDb()), getEvidenceStorage()),
 );
