@@ -47,3 +47,25 @@ jobs:
 
       - name: Compilación
         run: npm run build
+
+  contrato:
+    name: Pruebas y compilación del contrato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # La versión que pide contracts/proof-of-wild/Cargo.toml (rust-version).
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.91.1"
+          targets: wasm32v1-none
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts/proof-of-wild
+
+      - name: Pruebas del contrato
+        run: cargo test --locked --manifest-path contracts/proof-of-wild/Cargo.toml
+
+      - name: WASM de release
+        run: cargo build --locked --release --target wasm32v1-none --manifest-path contracts/proof-of-wild/Cargo.toml
