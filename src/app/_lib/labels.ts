@@ -1,22 +1,25 @@
-import type { ExpenseCategory } from "@/modules/expenses";
-import type { CaseStage } from "@/modules/shared/stages";
-
-export const STAGE_LABELS: Record<CaseStage, string> = {
-  ingreso: "Ingreso",
-  cuarentena: "Cuarentena",
-  evaluacion_veterinaria: "Evaluación veterinaria",
-  rehabilitacion: "Rehabilitación",
-  revision_progreso: "Revisión de progreso",
-  destino_final: "Destino final",
-};
+import type { ExpenseCategory, ValidationLevel } from "@/modules/catalog";
 
 export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
-  alimentacion: "Alimentación",
-  atencion_veterinaria: "Atención veterinaria",
   medicamentos: "Medicamentos",
-  rehabilitacion: "Rehabilitación",
-  destino_final: "Preparación para el destino final",
+  atencion_veterinaria: "Atención veterinaria",
+  alimentacion: "Alimentación",
+  rehabilitacion: "Rehabilitación y recintos",
+  traslado_liberacion: "Traslado y liberación",
 };
 
-/** Activo que se muestra en las páginas públicas de lectura (que no consultan la red ni su configuración). */
+/** Niveles de validación: la confianza sube de «presentado» a «verificado de forma independiente». */
+export const VALIDATION_LABELS: Record<ValidationLevel, { long: string; short: string }> = {
+  presentado: { long: "Presentado por la ONG", short: "Presentado" },
+  revisado: { long: "Revisado por un profesional", short: "Revisado" },
+  verificado_independiente: { long: "Verificado de forma independiente", short: "Verificado" },
+};
+
+export const STAGE_STATUS_LABELS = {
+  completada: "Completada",
+  en_curso: "En curso",
+  pendiente: "Pendiente",
+} as const;
+
+/** Activo que muestran las páginas de lectura (no consultan la red ni su configuración). */
 export const DISPLAY_ASSET = "USDC";

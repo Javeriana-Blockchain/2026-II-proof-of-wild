@@ -1,33 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { DM_Serif_Display, Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 
+const serif = DM_Serif_Display({ subsets: ["latin"], weight: "400", variable: "--font-dm-serif", display: "swap" });
+const sans = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+
 export const metadata: Metadata = {
-  title: {
-    default: "Proof of Wild",
-    template: "%s · Proof of Wild",
-  },
+  title: { default: "Proof of Wild", template: "%s · Proof of Wild" },
   description:
-    "Apadrina la recuperación de un animal silvestre rescatado y verifica, paso a paso, en qué se usó tu aporte.",
+    "Apadrina a un animal rescatado y sigue cada paso de su recuperación. Todo queda registrado en Stellar y lo puedes verificar.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es">
-      <body className="min-h-screen antialiased">
-        <header className="border-b border-black/10 bg-white">
-          <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-            <Link href="/" className="font-semibold">
-              Proof of Wild
-            </Link>
-            <Link href="/portal" className="text-sm text-black/70 underline">
-              Portal de centros
-            </Link>
-          </nav>
-        </header>
-        <div className="mx-auto max-w-5xl px-4 py-8">{children}</div>
-      </body>
+    <html lang="es" className={`${serif.variable} ${sans.variable}`}>
+      <body className="min-h-screen antialiased">{children}</body>
     </html>
   );
 }

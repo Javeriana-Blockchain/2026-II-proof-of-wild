@@ -1,12 +1,42 @@
 @import "tailwindcss";
 
-:root {
-  --color-fondo: #faf8f3;
-  --color-texto: #1f2a24;
-  --color-acento: #2f6b4f;
+/*
+ * Paleta y tipografía de "Proof of Wild — Pantallas de la página" (página 22, Estilos y componentes).
+ * El crema es el fondo general; el blanco solo va en tarjetas, ventanas y campos de formulario.
+ * Contraste mínimo: 4,5:1 para texto normal y 3:1 para texto grande e íconos.
+ */
+@theme {
+  --color-profundo: #2c4f33; /* portada y pie */
+  --color-bosque: #386641; /* principal: menú, botones, enlaces, títulos, progreso, "verificado" */
+  --color-salvia: #a7b894; /* "Tu aporte", chip "revisado por un profesional" */
+  --color-arena: #d8c299; /* chips de etapa, bordes y separadores */
+  --color-crema: #f2e8cf; /* fondo general */
+  --color-gris: #f5f5f5; /* pie de página, desactivados */
+  --color-texto: #1f2a22; /* texto normal */
+  --color-secundario: #4a5a4e; /* textos secundarios */
+  --color-error: #b23a2e; /* avisos de error, con texto blanco encima */
+
+  --font-serif: var(--font-dm-serif), Georgia, serif;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
 }
 
 body {
-  background: var(--color-fondo);
+  background: var(--color-crema);
   color: var(--color-texto);
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+
+/* Títulos en DM Serif Display. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-bosque);
+  outline-offset: 2px;
 }
