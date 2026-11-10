@@ -6,10 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sha256Hex } from "@/lib/hash";
 import { LocalEvidenceStorage } from "@/platform/storage/local-storage";
 import { sanitizeImage } from "@/platform/storage/sanitize-image";
-import { signEvidenceUrl, verifyEvidenceSignature } from "@/platform/storage/signed-url";
 import { assertAllowedUpload, MAX_UPLOAD_BYTES } from "@/platform/storage/upload-rules";
-
-const SECRET = "x".repeat(40);
 
 /** JPEG con metadatos EXIF, como los que dejan las cámaras y los teléfonos. */
 async function jpegWithExif(): Promise<Uint8Array> {
@@ -50,39 +47,13 @@ describe("reglas de subida", () => {
   });
 });
 
-describe("URL firmada de evidencias", () => {
-  const now = Date.UTC(2026, 10, 10, 12, 0, 0);
-  const parse = (url: string) => {
-    const parsed = new URL(url, "http://localhost");
-    return {
-      key: decodeURIComponent(parsed.pathname.split("/").pop() ?? ""),
-      exp: Number(parsed.searchParams.get("exp")),
-      sig: parsed.searchParams.get("sig") ?? "",
-    };
-  };
-
-  it("acepta una firma vigente", () => {
-    const { key, exp, sig } = parse(signEvidenceUrl("abc.jpg", 60, SECRET, now));
-    expect(verifyEvidenceSignature(key, exp, sig, SECRET, now + 30_000)).toBe(true);
-  });
-
-  it("rechaza firmas vencidas, alteradas o con otra clave", () => {
-    const { key, exp, sig } = parse(signEvidenceUrl("abc.jpg", 60, SECRET, now));
-    expect(verifyEvidenceSignature(key, exp, sig, SECRET, now + 61_000)).toBe(false);
-    expect(verifyEvidenceSignature("otro.jpg", exp, sig, SECRET, now)).toBe(false);
-    expect(verifyEvidenceSignature(key, exp + 1000, sig, SECRET, now)).toBe(false);
-    expect(verifyEvidenceSignature(key, exp, sig, "y".repeat(40), now)).toBe(false);
-    expect(verifyEvidenceSignature(key, exp, "no-es-hex", SECRET, now)).toBe(false);
-  });
-});
-
 describe("almacén local de evidencias", () => {
   let directory: string;
   let storage: LocalEvidenceStorage;
 
   beforeAll(async () => {
     directory = await mkdtemp(path.join(os.tmpdir(), "pow-evidence-"));
-    storage = new LocalEvidenceStorage(directory, SECRET);
+    storage = new LocalEvidenceStorage(directory);
   });
   afterAll(async () => {
     await rm(directory, { recursive: true, force: true });
@@ -102,6 +73,12 @@ describe("almacén local de evidencias", () => {
     expect((await sharp(onDisk).metadata()).exif).toBeUndefined();
     expect(stored.sha256).toBe(await sha256Hex(onDisk));
     expect(stored.sizeBytes).toBe(onDisk.byteLength);
+  });
+
+  it("publica el archivo en una ruta fija y solo para claves del almacén", async () => {
+    const stored = await storage.save({ data: new TextEncoder().encode("%PDF-1.4 x"), contentType: "application/pdf" });
+    expect(storage.publicUrl(stored.key)).toBe(`/api/evidencias/${stored.key}`);
+    expect(() => storage.publicUrl("../secreto.pdf")).toThrow(RangeError);
   });
 
   it("rechaza claves con rutas y tipos no permitidos", async () => {
