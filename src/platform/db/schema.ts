@@ -9,6 +9,7 @@ import {
   numeric,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -16,131 +17,268 @@ import {
 } from "drizzle-orm/pg-core";
 
 /**
- * Esquema relacional del MVP. Todo vive aquí; en Stellar solo van pagos y hashes.
- * Los montos usan 7 decimales, como Stellar. Los hashes SHA-256 se guardan en hexadecimal (64 caracteres).
- * Las restricciones CHECK hacen cumplir en la base de datos las reglas RN-01 y RN-02.
+ * Esquema fuera de la red (brief, «Modelo de datos»). El dinero y los hashes viven en el contrato Soroban;
+ * aquí se guarda el contenido (casos, etapas, fotos, facturas, perfiles, voluntariados) y una copia de cada
+ * transacción para mostrarla rápido, porque el RPC de Stellar solo conserva los eventos unos 7 días.
+ * Montos con 7 decimales, como el USDC de prueba. Hashes SHA-256 en hexadecimal (64 caracteres).
  */
 
-export const verificationStatus = pgEnum("verification_status", ["pending", "verified", "rejected"]);
-export const userRole = pgEnum("user_role", ["center", "validator", "admin"]);
-export const caseStage = pgEnum("case_stage", [
-  "ingreso",
-  "cuarentena",
-  "evaluacion_veterinaria",
-  "rehabilitacion",
-  "revision_progreso",
-  "destino_final",
-]);
-export const finalDestination = pgEnum("final_destination", [
-  "liberacion",
-  "reubicacion",
-  "santuario",
-  "fallecimiento",
-]);
-export const needCategory = pgEnum("need_category", [
-  "alimentacion",
-  "atencion_veterinaria",
-  "medicamentos",
-  "rehabilitacion",
-  "destino_final",
-]);
-export const contributionKind = pgEnum("contribution_kind", ["unico", "recurrente"]);
-export const expenseStatus = pgEnum("expense_status", [
-  "borrador",
-  "pendiente",
-  "verificado",
-  "rechazado",
-]);
+export const userRole = pgEnum("user_role", ["persona", "ong", "admin"]);
+export const ngoKind = pgEnum("ngo_kind", ["centro_atencion", "fundacion", "ong"]);
+export const ngoStatus = pgEnum("ngo_status", ["en_revision", "aprobada", "rechazada"]);
+export const animalGroup = pgEnum("animal_group", ["ave", "mamifero", "reptil", "anfibio"]);
+export const caseStatus = pgEnum("case_status", ["activo", "recuperado"]);
+export const caseOutcome = pgEnum("case_outcome", ["liberado", "en_reserva", "reubicado", "fallecido"]);
+export const stageStatus = pgEnum("stage_status", ["pendiente", "en_curso", "completada"]);
+export const txStatus = pgEnum("tx_status", ["enviada", "confirmada", "fallida"]);
 export const validationLevel = pgEnum("validation_level", [
   "presentado",
   "revisado",
   "verificado_independiente",
 ]);
+export const expenseCategory = pgEnum("expense_category", [
+  "alimentacion",
+  "atencion_veterinaria",
+  "medicamentos",
+  "rehabilitacion",
+  "traslado_liberacion",
+]);
+export const availability = pgEnum("availability", ["toda_la_jornada", "manana", "tarde"]);
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
 const money = (name: string) => numeric(name, { precision: 20, scale: 7 });
+const hex64 = (column: unknown) => sql`${column} ~ '^[0-9a-f]{64}$'`;
+const stellarAccount = (column: unknown) => sql`${column} ~ '^G[A-Z2-7]{55}$'`;
 
-export const centers = pgTable("centers", {
-  id: id(),
-  name: text("name").notNull(),
-  city: text("city").notNull(),
-  /** Cuenta Stellar que recibe los aportes. Se vincula al dominio del centro con stellar.toml (SEP-1). */
-  stellarAccount: text("stellar_account").notNull().unique(),
-  domain: text("domain"),
-  verificationStatus: verificationStatus("verification_status").notNull().default("pending"),
-  createdAt: createdAt(),
-});
+// ---------------------------------------------------------------------------
+// Cuentas (SRP-6a): la base de datos nunca ve la contraseña, solo la sal y el verificador v = g^x mod N.
+// ---------------------------------------------------------------------------
 
-export const appUsers = pgTable(
-  "app_users",
+export const users = pgTable(
+  "users",
   {
     id: id(),
-    role: userRole("role").notNull(),
-    centerId: uuid("center_id").references(() => centers.id),
     email: text("email").notNull().unique(),
-    passwordHash: text("password_hash").notNull(),
-    displayName: text("display_name").notNull(),
-    /** Cuenta Stellar con la que firma anclajes (centro) o validaciones (validador). */
-    stellarAccount: text("stellar_account"),
+    role: userRole("role").notNull(),
+    srpSalt: text("srp_salt").notNull(),
+    srpVerifier: text("srp_verifier").notNull(),
+    active: boolean("active").notNull().default(true),
     createdAt: createdAt(),
   },
   (t) => [
-    check("app_users_center_required", sql`${t.role} = 'admin' OR ${t.centerId} IS NOT NULL`),
+    check("users_email_lowercase", sql`${t.email} = lower(${t.email})`),
+    check("users_srp_hex", sql`${t.srpSalt} ~ '^[0-9a-f]+$' AND ${t.srpVerifier} ~ '^[0-9a-f]+$'`),
   ],
 );
 
-export const donors = pgTable("donors", {
-  id: id(),
-  /** Los donantes se identifican por su billetera; no tienen contraseña. */
-  stellarAccount: text("stellar_account").notNull().unique(),
-  displayName: text("display_name"),
-  email: text("email"),
-  createdAt: createdAt(),
-});
+/** Paso 1 de SRP. Vence en 2 minutos y se usa una sola vez. userId nulo = respuesta señuelo. */
+export const authChallenges = pgTable(
+  "auth_challenges",
+  {
+    id: id(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+    clientPublic: text("client_public").notNull(),
+    serverPublic: text("server_public").notNull(),
+    serverSecret: text("server_secret").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    succeeded: boolean("succeeded"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("auth_challenges_user_idx").on(t.userId, t.createdAt)],
+);
+
+/** Sesiones del sitio. Se guarda SHA-256 del token, nunca el token. */
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [check("sessions_token_hash", hex64(t.tokenHash))],
+);
+
+/** Perfil de una persona (donante, voluntaria o las dos). El nombre, el correo y el teléfono son privados. */
+export const personProfiles = pgTable(
+  "person_profiles",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    fullName: text("full_name"),
+    alias: text("alias"),
+    city: text("city"),
+    phone: text("phone"),
+    wantsToDonate: boolean("wants_to_donate").notNull().default(true),
+    wantsToVolunteer: boolean("wants_to_volunteer").notNull().default(false),
+    interests: text("interests").array().notNull().default(sql`'{}'::text[]`),
+    stellarAccount: text("stellar_account").unique(),
+    showAlias: boolean("show_alias").notNull().default(true),
+    emailUpdates: boolean("email_updates").notNull().default(false),
+    /** Autorización de tratamiento de datos (Ley 1581 de 2012). */
+    dataConsentAt: timestamp("data_consent_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check("person_profiles_stellar", sql`${t.stellarAccount} IS NULL OR ${stellarAccount(t.stellarAccount)}`)],
+);
+
+// ---------------------------------------------------------------------------
+// ONG y proveedores
+// ---------------------------------------------------------------------------
+
+export const ngos = pgTable(
+  "ngos",
+  {
+    id: id(),
+    userId: uuid("user_id")
+      .notNull()
+      .unique()
+      .references(() => users.id),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    nit: text("nit").notNull(),
+    kind: ngoKind("kind").notNull(),
+    /** Complemento del tipo, por ejemplo «centro de rehabilitación de aves». */
+    kindDetail: text("kind_detail"),
+    /** Ciudad y departamento, sin dirección exacta (RN-07). */
+    city: text("city").notNull(),
+    foundedYear: integer("founded_year"),
+    description: text("description").notNull(),
+    environmentalPermit: text("environmental_permit"),
+    contactName: text("contact_name").notNull(),
+    contactEmail: text("contact_email").notNull(),
+    contactPhone: text("contact_phone").notNull(),
+    /** Cuenta que firma los gastos e hitos en el contrato. */
+    stellarAccount: text("stellar_account").notNull().unique(),
+    offersVolunteering: boolean("offers_volunteering").notNull().default(false),
+    status: ngoStatus("status").notNull().default("en_revision"),
+    photoPath: text("photo_path"),
+    dataConsentAt: timestamp("data_consent_at", { withTimezone: true }).notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    check("ngos_stellar", stellarAccount(t.stellarAccount)),
+    check("ngos_slug", sql`${t.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`),
+  ],
+);
+
+/** Proveedores a los que el contrato les paga directamente. */
+export const providers = pgTable(
+  "providers",
+  {
+    id: id(),
+    name: text("name").notNull(),
+    sells: text("sells").notNull(),
+    city: text("city").notNull(),
+    stellarAccount: text("stellar_account").notNull().unique(),
+    createdAt: createdAt(),
+  },
+  (t) => [check("providers_stellar", stellarAccount(t.stellarAccount))],
+);
+
+export const providerNgos = pgTable(
+  "provider_ngos",
+  {
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => providers.id, { onDelete: "cascade" }),
+    ngoId: uuid("ngo_id")
+      .notNull()
+      .references(() => ngos.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.providerId, t.ngoId] })],
+);
+
+// ---------------------------------------------------------------------------
+// Casos y etapas
+// ---------------------------------------------------------------------------
 
 export const cases = pgTable(
   "cases",
   {
     id: id(),
-    /** Código de ingreso, por ejemplo POW-001. Va en el memo de texto del pago (máx. 28 bytes). */
+    /** Mismo código que en el contrato, donde va como Symbol: POW_001. */
     code: text("code").notNull().unique(),
-    centerId: uuid("center_id")
+    ngoId: uuid("ngo_id")
       .notNull()
-      .references(() => centers.id),
-    species: text("species").notNull(),
-    /** La especie solo se muestra cuando es seguro divulgarla (RN-05). */
-    speciesPublic: boolean("species_public").notNull().default(false),
+      .references(() => ngos.id),
+    commonName: text("common_name").notNull(),
+    scientificName: text("scientific_name").notNull(),
+    group: animalGroup("group").notNull(),
+    /** La especie se muestra solo cuando es seguro divulgarla (RN-05). */
+    speciesPublic: boolean("species_public").notNull().default(true),
+    shortStory: text("short_story").notNull(),
+    story: text("story").notNull(),
+    photoPath: text("photo_path"),
     intakeDate: date("intake_date").notNull(),
-    initialState: text("initial_state").notNull(),
-    goalAmount: money("goal_amount").notNull(),
-    currentStage: caseStage("current_stage").notNull().default("ingreso"),
-    finalDestination: finalDestination("final_destination"),
+    status: caseStatus("status").notNull().default("activo"),
+    outcome: caseOutcome("outcome"),
+    /** Texto del resultado tal como se muestra, por ejemplo «Liberada» o «En reserva». */
+    outcomeLabel: text("outcome_label"),
+    outcomeDate: date("outcome_date"),
+    /** Transacción de crear_caso en el contrato. */
+    contractTxHash: text("contract_tx_hash"),
     createdAt: createdAt(),
   },
   (t) => [
-    check("cases_code_format", sql`${t.code} ~ '^POW-[0-9]{3,6}$'`),
-    check("cases_goal_positive", sql`${t.goalAmount} > 0`),
-    index("cases_center_idx").on(t.centerId),
+    check("cases_code_format", sql`${t.code} ~ '^POW_[0-9]{3,6}$'`),
+    check("cases_outcome_when_recovered", sql`${t.status} = 'activo' OR ${t.outcome} IS NOT NULL`),
+    index("cases_ngo_idx").on(t.ngoId),
   ],
 );
 
-export const needs = pgTable(
-  "needs",
+/** Etapas del tratamiento, en orden. El orden y los costos son los mismos que se pasaron a crear_caso. */
+export const stages = pgTable(
+  "stages",
   {
     id: id(),
     caseId: uuid("case_id")
       .notNull()
       .references(() => cases.id, { onDelete: "cascade" }),
-    category: needCategory("category").notNull(),
-    budgetAmount: money("budget_amount").notNull(),
+    position: integer("position").notNull(),
+    name: text("name").notNull(),
+    /** Nombre corto para el chip de etapa, por ejemplo «Cuidados especiales». */
+    shortName: text("short_name").notNull(),
+    covers: text("covers"),
+    cost: money("cost").notNull(),
+    photoPath: text("photo_path"),
+    status: stageStatus("status").notNull().default("pendiente"),
   },
   (t) => [
-    unique("needs_case_category_uq").on(t.caseId, t.category),
-    check("needs_budget_nonnegative", sql`${t.budgetAmount} >= 0`),
+    unique("stages_case_position_uq").on(t.caseId, t.position),
+    check("stages_position_positive", sql`${t.position} >= 1`),
+    check("stages_cost_positive", sql`${t.cost} > 0`),
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Copia de lo que pasó en la red
+// ---------------------------------------------------------------------------
+
+/** Alias público de una billetera que aporta. Sin alias se muestra la dirección abreviada. */
+export const donors = pgTable(
+  "donors",
+  {
+    stellarAccount: text("stellar_account").primaryKey(),
+    alias: text("alias"),
+    createdAt: createdAt(),
+  },
+  (t) => [check("donors_stellar", stellarAccount(t.stellarAccount))],
+);
+
+/**
+ * Aporte. Se guarda al enviar la transacción (estado «enviada») y pasa a «confirmada» cuando el servidor
+ * la lee en la red, con el reparto por etapa que emitió el contrato en el evento `aporte`.
+ */
 export const contributions = pgTable(
   "contributions",
   {
@@ -148,51 +286,48 @@ export const contributions = pgTable(
     caseId: uuid("case_id")
       .notNull()
       .references(() => cases.id),
-    donorId: uuid("donor_id")
-      .notNull()
-      .references(() => donors.id),
+    donorAccount: text("donor_account").notNull(),
     amount: money("amount").notNull(),
-    assetCode: text("asset_code").notNull(),
-    /** Único: confirmar dos veces la misma transacción no duplica el aporte (ADR-04). */
     txHash: text("tx_hash").notNull().unique(),
-    kind: contributionKind("kind").notNull().default("unico"),
-    /**
-     * Fecha de la transacción en la red. Solo existen filas de aportes que el servidor ya leyó en la red
-     * (RN-03); los envíos aún sin confirmar viven en pending_contributions.
-     */
-    confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull(),
-    createdAt: createdAt(),
+    status: txStatus("status").notNull().default("enviada"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Fecha del ledger en que quedó la transacción. */
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
   },
   (t) => [
     check("contributions_amount_positive", sql`${t.amount} > 0`),
-    check("contributions_tx_hash_format", sql`${t.txHash} ~ '^[0-9a-f]{64}$'`),
+    check("contributions_tx_hash", hex64(t.txHash)),
+    check("contributions_donor", stellarAccount(t.donorAccount)),
+    check("contributions_confirmed_at", sql`${t.status} <> 'confirmada' OR ${t.confirmedAt} IS NOT NULL`),
     index("contributions_case_idx").on(t.caseId),
-    index("contributions_donor_idx").on(t.donorId),
+    index("contributions_donor_idx").on(t.donorAccount),
+  ],
+);
+
+export const contributionAllocations = pgTable(
+  "contribution_allocations",
+  {
+    contributionId: uuid("contribution_id")
+      .notNull()
+      .references(() => contributions.id, { onDelete: "cascade" }),
+    stageId: uuid("stage_id")
+      .notNull()
+      .references(() => stages.id),
+    amount: money("amount").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.contributionId, t.stageId] }),
+    check("contribution_allocations_positive", sql`${t.amount} > 0`),
   ],
 );
 
 /**
- * Aportes que el navegador informó pero que la red aún no muestra, o que no se pudieron leer porque la
- * red no respondió (QA-DIS-01). La tarea de reconciliación los reintenta (ADR-04).
+ * Gasto: registrar_gasto le paga al proveedor desde la etapa y guarda el hash de la factura en la misma
+ * llamada; la factura se publica en la página (doble confirmación). Sin validar se muestra como
+ * «presentado por la ONG», nunca como confirmado (RN-01).
  */
-export const pendingContributions = pgTable(
-  "pending_contributions",
-  {
-    txHash: text("tx_hash").primaryKey(),
-    caseId: uuid("case_id")
-      .notNull()
-      .references(() => cases.id),
-    attempts: integer("attempts").notNull().default(0),
-    lastError: text("last_error"),
-    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
-    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
-  },
-  (t) => [
-    check("pending_contributions_tx_hash_format", sql`${t.txHash} ~ '^[0-9a-f]{64}$'`),
-    index("pending_contributions_submitted_idx").on(t.submittedAt),
-  ],
-);
-
 export const expenses = pgTable(
   "expenses",
   {
@@ -200,43 +335,36 @@ export const expenses = pgTable(
     caseId: uuid("case_id")
       .notNull()
       .references(() => cases.id),
-    category: needCategory("category").notNull(),
-    amount: money("amount").notNull(),
-    /** Clave del soporte en el almacén privado de evidencias. */
-    supportKey: text("support_key"),
-    /** SHA-256 del soporte; es lo que se ancla en la red. */
-    supportHash: text("support_hash").notNull(),
-    status: expenseStatus("status").notNull().default("borrador"),
-    registeredBy: uuid("registered_by")
+    stageId: uuid("stage_id")
       .notNull()
-      .references(() => appUsers.id),
-    validatedBy: uuid("validated_by").references(() => appUsers.id),
-    anchorTxHash: text("anchor_tx_hash").unique(),
-    validationTxHash: text("validation_tx_hash").unique(),
+      .references(() => stages.id),
+    providerId: uuid("provider_id")
+      .notNull()
+      .references(() => providers.id),
+    category: expenseCategory("category").notNull(),
+    /** Concepto corto, por ejemplo «Revisión antes de liberar». Sin concepto se muestra el nombre de la etapa. */
+    concept: text("concept"),
+    amount: money("amount").notNull(),
+    occurredOn: date("occurred_on").notNull(),
+    invoiceNumber: text("invoice_number").notNull(),
+    /** Clave del archivo de la factura en el almacén de evidencias (pública, sin datos de terceros). */
+    invoiceKey: text("invoice_key").notNull(),
+    invoiceHash: text("invoice_hash").notNull(),
+    txHash: text("tx_hash").unique(),
+    status: txStatus("status").notNull().default("enviada"),
+    validationLevel: validationLevel("validation_level").notNull().default("presentado"),
+    registeredBy: uuid("registered_by").references(() => users.id),
     createdAt: createdAt(),
-    validatedAt: timestamp("validated_at", { withTimezone: true }),
   },
   (t) => [
     check("expenses_amount_positive", sql`${t.amount} > 0`),
-    check("expenses_support_hash_format", sql`${t.supportHash} ~ '^[0-9a-f]{64}$'`),
-    // RN-02: quien registra no valida.
-    check(
-      "expenses_registrant_not_validator",
-      sql`${t.validatedBy} IS NULL OR ${t.validatedBy} <> ${t.registeredBy}`,
-    ),
-    // RN-01 y QA-TRZ-01: nada se muestra como pendiente o verificado sin su ancla en la red.
-    check(
-      "expenses_anchor_required",
-      sql`${t.status} NOT IN ('pendiente', 'verificado') OR ${t.anchorTxHash} IS NOT NULL`,
-    ),
-    check(
-      "expenses_verified_requires_validation",
-      sql`${t.status} <> 'verificado' OR (${t.validatedBy} IS NOT NULL AND ${t.validationTxHash} IS NOT NULL)`,
-    ),
+    check("expenses_invoice_hash", hex64(t.invoiceHash)),
+    check("expenses_confirmed_tx", sql`${t.status} <> 'confirmada' OR ${t.txHash} IS NOT NULL`),
     index("expenses_case_idx").on(t.caseId),
   ],
 );
 
+/** Hito: avance del tratamiento con su foto; el hash de la foto queda en el evento `hito` del contrato. */
 export const milestones = pgTable(
   "milestones",
   {
@@ -244,36 +372,70 @@ export const milestones = pgTable(
     caseId: uuid("case_id")
       .notNull()
       .references(() => cases.id),
-    stage: caseStage("stage").notNull(),
-    occurredAt: date("occurred_at").notNull(),
-    description: text("description").notNull(),
-    evidenceKey: text("evidence_key"),
-    /** SHA-256 del archivo de evidencia o, sin archivo, del JSON canónico del registro. */
-    evidenceHash: text("evidence_hash").notNull(),
-    validationLevel: validationLevel("validation_level").notNull().default("presentado"),
-    registeredBy: uuid("registered_by")
+    stageId: uuid("stage_id")
       .notNull()
-      .references(() => appUsers.id),
-    validatedBy: uuid("validated_by").references(() => appUsers.id),
-    /** Nulo = borrador, aún no publicado. */
-    anchorTxHash: text("anchor_tx_hash").unique(),
-    validationTxHash: text("validation_tx_hash").unique(),
+      .references(() => stages.id),
+    occurredOn: date("occurred_on").notNull(),
+    description: text("description").notNull(),
+    /** Clave del archivo en el almacén de evidencias o ruta en public/ para los datos de prueba. */
+    photoKey: text("photo_key"),
+    evidenceHash: text("evidence_hash").notNull(),
+    txHash: text("tx_hash").unique(),
+    status: txStatus("status").notNull().default("enviada"),
+    validationLevel: validationLevel("validation_level").notNull().default("presentado"),
+    registeredBy: uuid("registered_by").references(() => users.id),
     createdAt: createdAt(),
-    validatedAt: timestamp("validated_at", { withTimezone: true }),
   },
   (t) => [
-    check("milestones_evidence_hash_format", sql`${t.evidenceHash} ~ '^[0-9a-f]{64}$'`),
-    // RN-02: quien registra no valida.
-    check(
-      "milestones_registrant_not_validator",
-      sql`${t.validatedBy} IS NULL OR ${t.validatedBy} <> ${t.registeredBy}`,
-    ),
-    check(
-      "milestones_validated_requires_validation",
-      sql`${t.validationLevel} = 'presentado' OR (${t.validatedBy} IS NOT NULL AND ${t.validationTxHash} IS NOT NULL)`,
-    ),
+    check("milestones_evidence_hash", hex64(t.evidenceHash)),
+    check("milestones_confirmed_tx", sql`${t.status} <> 'confirmada' OR ${t.txHash} IS NOT NULL`),
     index("milestones_case_idx").on(t.caseId),
   ],
+);
+
+// ---------------------------------------------------------------------------
+// Voluntariado (solo base de datos, nunca en la red)
+// ---------------------------------------------------------------------------
+
+export const volunteerings = pgTable(
+  "volunteerings",
+  {
+    id: id(),
+    ngoId: uuid("ngo_id")
+      .notNull()
+      .references(() => ngos.id),
+    title: text("title").notNull(),
+    date: date("date").notNull(),
+    schedule: text("schedule").notNull(),
+    city: text("city").notNull(),
+    tasks: text("tasks").array().notNull(),
+    requirements: text("requirements").array().notNull(),
+    capacity: integer("capacity").notNull(),
+    /** Cupos ya ocupados por inscripciones hechas fuera de la página. */
+    preOccupied: integer("pre_occupied").notNull().default(0),
+    photoPath: text("photo_path"),
+    createdAt: createdAt(),
+  },
+  (t) => [check("volunteerings_capacity", sql`${t.capacity} > 0 AND ${t.preOccupied} BETWEEN 0 AND ${t.capacity}`)],
+);
+
+/** Inscripción a un voluntariado. Datos personales protegidos por la Ley 1581 de 2012. */
+export const enrollments = pgTable(
+  "enrollments",
+  {
+    id: id(),
+    volunteeringId: uuid("volunteering_id")
+      .notNull()
+      .references(() => volunteerings.id),
+    userId: uuid("user_id").references(() => users.id),
+    fullName: text("full_name").notNull(),
+    email: text("email").notNull(),
+    phone: text("phone").notNull(),
+    availability: availability("availability").notNull(),
+    dataConsentAt: timestamp("data_consent_at", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("enrollments_volunteering_email_uq").on(t.volunteeringId, t.email)],
 );
 
 export const auditLog = pgTable(
