@@ -94,11 +94,11 @@ export function DonorSections({
             {own ? "Mis casos" : "Casos que apoya"}
           </h2>
           {view.cases.map((c) => (
-            <article key={c.code} className="grid overflow-hidden rounded-3xl bg-white shadow-sm md:grid-cols-[14rem_1fr_18rem]">
-              <div className="relative min-h-40">
+            <article key={c.code} className="grid overflow-hidden rounded-3xl bg-white shadow-sm sm:grid-cols-[12rem_1fr] xl:grid-cols-[14rem_1fr_18rem]">
+              <div className="relative min-h-40 sm:row-span-2 xl:row-span-1">
                 {c.photoPath ? <Image src={photo(c.photoPath)} alt={c.name} fill sizes="224px" className="object-cover" /> : null}
               </div>
-              <div className="space-y-2 p-5">
+              <div className="space-y-2 p-5 pb-0 xl:pb-5">
                 <p className="text-sm text-secundario">
                   {c.code} · {c.ngoName}
                 </p>
@@ -112,7 +112,7 @@ export function DonorSections({
                   Ver el caso
                 </Link>
               </div>
-              <div className="m-5 self-center rounded-2xl bg-salvia p-5">
+              <div className="m-5 self-start rounded-2xl bg-salvia p-5 xl:self-center">
                 <p className="font-semibold">{own ? "Tu aporte se usó en" : "Su aporte se usó en"}</p>
                 <ul className="mt-2 space-y-1">
                   {c.allocations.map((a) => (
@@ -138,8 +138,8 @@ export function DonorSections({
           ) : (
             <ul className="divide-y divide-arena/40">
               {view.contributions.map((c) => (
-                <li key={c.txHash} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                  <span>
+                <li key={c.txHash} className="flex items-start justify-between gap-3 py-3">
+                  <span className="min-w-0">
                     {formatShortDate(c.confirmedAt)} · {c.caseName}
                     <span className="mt-1 flex gap-4 text-sm">
                       <Link href={`/comprobante/${c.txHash}`} className="font-medium text-bosque underline">
@@ -148,7 +148,7 @@ export function DonorSections({
                       <ExplorerLink href={explorerTxUrl(explorerBaseUrl, c.txHash)} />
                     </span>
                   </span>
-                  <strong>{formatAmount(c.amount)}</strong>
+                  <strong className="whitespace-nowrap">{formatAmount(c.amount)}</strong>
                 </li>
               ))}
             </ul>
@@ -175,7 +175,7 @@ export function DonorSections({
             <ul className="space-y-3">
               {view.volunteerings.map((v) => (
                 <li key={v.ngoName + v.date} className="flex items-center justify-between gap-3">
-                  <span>
+                  <span className="min-w-0">
                     {v.ngoName} · {formatDate(v.date)}
                   </span>
                   <span className="rounded-full bg-crema px-3 py-0.5 text-sm font-semibold">Inscrito</span>

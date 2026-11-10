@@ -21,9 +21,9 @@ export function DisconnectButton() {
         router.refresh();
         setBusy(false);
       }}
-      className={buttonClass("secundario", "py-2")}
+      className={buttonClass("secundario", "w-full py-2")}
     >
-      Desconectar
+      Desconectar billetera
     </button>
   );
 }

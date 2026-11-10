@@ -41,13 +41,17 @@ export default async function PerfilPage() {
   return (
     <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-8 lg:grid-cols-[1fr_2.2fr]">
       <aside className="space-y-6">
-        <section className="flex items-center gap-4 rounded-3xl bg-white p-6">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-arena font-serif text-3xl">
-            {alias.charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-semibold">{alias}</p>
-            <p className="font-mono text-sm text-secundario">{account ? shortAccount(account) : "Sin billetera vinculada"}</p>
+        <section className="space-y-4 rounded-3xl bg-white p-6">
+          <div className="flex items-center gap-4">
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-arena font-serif text-3xl">
+              {alias.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-lg font-semibold">{alias}</p>
+              <p className="font-mono text-sm whitespace-nowrap text-secundario">
+                {account ? shortAccount(account) : "Sin billetera vinculada"}
+              </p>
+            </div>
           </div>
           {account ? <DisconnectButton /> : null}
         </section>
