@@ -135,6 +135,20 @@ export class DbCatalogReader implements CatalogReader {
     };
   }
 
+  async donorAllocations(code: string, account: string) {
+    return this.db
+      .select({ position: stages.position, amount: sql<string>`sum(${contributionAllocations.amount})` })
+      .from(contributionAllocations)
+      .innerJoin(contributions, eq(contributions.id, contributionAllocations.contributionId))
+      .innerJoin(stages, eq(stages.id, contributionAllocations.stageId))
+      .innerJoin(cases, eq(cases.id, contributions.caseId))
+      .where(
+        and(eq(cases.code, code), eq(contributions.donorAccount, account), eq(contributions.status, "confirmada")),
+      )
+      .groupBy(stages.position)
+      .orderBy(asc(stages.position));
+  }
+
   /** Agrega a cada caso sus etapas y lo cubierto por etapa con los aportes confirmados. */
   private async withFunding(rows: CaseRow[]): Promise<CaseWithFunding[]> {
     if (rows.length === 0) return [];

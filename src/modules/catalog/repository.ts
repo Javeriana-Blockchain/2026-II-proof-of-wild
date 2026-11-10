@@ -90,4 +90,6 @@ export interface CaseDetailData extends CaseWithFunding {
 export interface CatalogReader {
   listCases(): Promise<CaseWithFunding[]>;
   getCase(code: string): Promise<CaseDetailData | null>;
+  /** Lo que los aportes confirmados de una billetera asignaron a cada etapa del caso. */
+  donorAllocations(code: string, account: string): Promise<Array<{ position: number; amount: string }>>;
 }

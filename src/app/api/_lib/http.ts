@@ -21,8 +21,7 @@ export async function readJson<S extends z.ZodType>(request: Request, schema: S)
   }
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join(".") || "cuerpo"))];
-    throw new ValidationError(`Los datos enviados no son válidos. Revisa: ${fields.join(", ")}.`);
+    throw new ValidationError(parsed.error.issues[0]?.message ?? "Los datos enviados no son válidos.");
   }
   return parsed.data;
 }
@@ -36,5 +35,8 @@ export function errorResponse(error: unknown): NextResponse {
     );
   }
   console.error(error);
-  return NextResponse.json({ error: { code: "internal", message: "Error interno." } }, { status: 500 });
+  return NextResponse.json(
+    { error: { code: "internal", message: "Algo falló de nuestro lado. Inténtalo de nuevo." } },
+    { status: 500 },
+  );
 }

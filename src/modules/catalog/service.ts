@@ -1,5 +1,6 @@
 import { fromStroops, sumAmounts, toStroops } from "@/lib/amount";
 import { explorerTxUrl } from "@/lib/explorer";
+import { isStellarAccount } from "@/lib/stellar-account";
 import { fundingProgress, isValidCaseCode, remainingToGoal, type StageStatus } from "../cases";
 import type {
   CaseOutcome,
@@ -234,6 +235,16 @@ export class CatalogService {
         }))
         .sort((a, b) => b.confirmedAt.localeCompare(a.confirmedAt)),
     };
+  }
+
+  /**
+   * «Tu aporte» de la línea de tiempo personalizada: lo que los aportes de una billetera pagaron de cada etapa.
+   * Las billeteras y sus aportes son públicos en la red; aquí no se agrega ningún dato personal.
+   */
+  async donorAllocations(code: string, account: string): Promise<Record<number, string>> {
+    if (!isValidCaseCode(code) || !isStellarAccount(account)) return {};
+    const rows = await this.reader.donorAllocations(code, account);
+    return Object.fromEntries(rows.map((r) => [r.position, normalize(r.amount)]));
   }
 
   private summary({ row, stages, coveredByStage }: CaseWithFunding): PublicCaseSummary {
