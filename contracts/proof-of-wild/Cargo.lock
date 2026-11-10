@@ -1264,7 +1264,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "raiz"
+name = "proof-of-wild"
 version = "0.1.0"
 dependencies = [
  "soroban-sdk",

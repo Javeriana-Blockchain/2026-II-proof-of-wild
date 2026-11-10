@@ -1,5 +1,5 @@
 [package]
-name = "raiz"
+name = "proof-of-wild"
 version = "0.1.0"
 rust-version = "1.91.1"
 edition = "2021"

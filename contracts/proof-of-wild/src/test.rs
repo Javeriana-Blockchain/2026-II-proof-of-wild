@@ -10,7 +10,7 @@ use soroban_sdk::{
 
 struct Setup<'a> {
     env: Env,
-    client: RaizSilvestreClient<'a>,
+    client: ProofOfWildClient<'a>,
     token: TokenClient<'a>,
     org: Address,
     donor: Address,
@@ -38,8 +38,8 @@ fn setup<'a>() -> Setup<'a> {
     StellarAssetClient::new(&env, &sac.address()).mint(&donor, &10_000);
     let token = TokenClient::new(&env, &sac.address());
 
-    let id = env.register(RaizSilvestre, ());
-    let client = RaizSilvestreClient::new(&env, &id);
+    let id = env.register(ProofOfWild, ());
+    let client = ProofOfWildClient::new(&env, &id);
     client.initialize(
         &admin,
         &sac.address(),
@@ -115,8 +115,8 @@ fn invalid_threshold_rejected() {
     env.mock_all_auths();
     let admin = Address::generate(&env);
     let token = Address::generate(&env);
-    let id = env.register(RaizSilvestre, ());
-    let client = RaizSilvestreClient::new(&env, &id);
+    let id = env.register(ProofOfWild, ());
+    let client = ProofOfWildClient::new(&env, &id);
     let a = Address::generate(&env);
     assert_eq!(
         client.try_initialize(&admin, &token, &vec![&env, a.clone()], &0),

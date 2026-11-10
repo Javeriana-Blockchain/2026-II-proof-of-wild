@@ -80,10 +80,10 @@ pub struct MilestoneValidated {
 }
 
 #[contract]
-pub struct RaizSilvestre;
+pub struct ProofOfWild;
 
 #[contractimpl]
-impl RaizSilvestre {
+impl ProofOfWild {
     /// One-time setup. `admin` authorizes rescue organizations; `approvers`
     /// co-sign disbursements (`threshold` approvals required) and validate
     /// milestones. `token` is the SEP-41 asset used for donations.
