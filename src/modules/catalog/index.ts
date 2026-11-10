@@ -1,16 +1,26 @@
 export { CatalogService } from "./service";
 export type {
+  CaseChip,
+  CatalogServiceConfig,
   PublicCaseDetail,
+  PublicCaseSummary,
   PublicContribution,
   PublicExpense,
-  PublicReceipt,
-  PublicTimelineEntry,
+  PublicStage,
+  PublicStageExpense,
+  PublicStageMilestone,
 } from "./service";
 export type {
+  AnimalGroup,
   CaseDetailData,
-  CatalogCaseRow,
+  CaseOutcome,
+  CaseRow,
+  CaseWithFunding,
   CatalogReader,
-  ConfirmedContributionRow,
-  NeedRow,
-  ReceiptRow,
+  ContributionRow,
+  ExpenseCategory,
+  ExpenseRow,
+  MilestoneRow,
+  StageRow,
+  ValidationLevel,
 } from "./repository";

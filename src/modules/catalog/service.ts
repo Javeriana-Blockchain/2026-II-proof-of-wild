@@ -1,137 +1,280 @@
-import { sumAmounts } from "@/lib/amount";
+import { fromStroops, sumAmounts, toStroops } from "@/lib/amount";
 import { explorerTxUrl } from "@/lib/explorer";
-import { isSha256Hex } from "@/lib/hash";
-import { toPublicCase, type PublicCase } from "../cases";
-import {
-  publicExpenseStatus,
-  transparencySummary,
-  type ExpenseCategory,
-  type PublicExpenseStatus,
-  type TransparencySummary,
-} from "../expenses";
-import { buildTimeline, type TimelineEntry } from "../milestones";
-import type { CatalogCaseRow, CatalogReader } from "./repository";
+import { fundingProgress, isValidCaseCode, remainingToGoal, type StageStatus } from "../cases";
+import type {
+  CaseOutcome,
+  CaseRow,
+  CaseWithFunding,
+  CatalogReader,
+  ExpenseCategory,
+  ValidationLevel,
+} from "./repository";
 
-export interface PublicTimelineEntry extends TimelineEntry {
-  anchorUrl: string;
-  validationUrl: string | null;
+/** Chip del caso: la etapa actual mientras está en tratamiento, o su resultado cuando terminó. */
+export interface CaseChip {
+  label: string;
+  tone: "etapa" | "logro" | "reserva";
+}
+
+export interface PublicCaseSummary {
+  code: string;
+  /** Nombre común. Nulo si no es seguro divulgar la especie (RN-05). */
+  commonName: string | null;
+  scientificName: string | null;
+  ngo: { slug: string; name: string };
+  shortStory: string;
+  photoUrl: string | null;
+  chip: CaseChip;
+  /** Etapas que aún faltan por cubrir; en un caso cerrado, todas las que tuvo. */
+  needs: string[];
+  recovered: boolean;
+  outcome: CaseOutcome | null;
+  outcomeLabel: string | null;
+  outcomeDate: string | null;
+  goal: string;
+  raised: string;
+  remaining: string;
+  progressPercent: number;
+}
+
+export interface PublicStageExpense {
+  providerName: string;
+  invoiceNumber: string;
+  amount: string;
+  validationLevel: ValidationLevel;
+  invoiceUrl: string;
+  txUrl: string;
+}
+
+export interface PublicStageMilestone {
+  occurredOn: string;
+  description: string;
+  photoUrl: string | null;
+  validationLevel: ValidationLevel;
+  txUrl: string;
+}
+
+export interface PublicStage {
+  position: number;
+  name: string;
+  covers: string | null;
+  cost: string;
+  covered: string;
+  spent: string;
+  status: StageStatus;
+  /** Foto de la etapa: la propia o la del último hito. */
+  photoUrl: string | null;
+  /** La etapa anterior aún no está cubierta, así que esta todavía no recibe aportes. */
+  waitingForPrevious: boolean;
+  expenses: PublicStageExpense[];
+  milestones: PublicStageMilestone[];
+}
+
+export interface PublicExpense extends PublicStageExpense {
+  occurredOn: string;
+  stagePosition: number;
+  stageName: string;
+  concept: string;
+  category: ExpenseCategory;
 }
 
 export interface PublicContribution {
+  donorAccount: string;
   amount: string;
-  assetCode: string;
   confirmedAt: string;
   txUrl: string;
+  allocations: Array<{ position: number; amount: string }>;
 }
 
-export interface PublicExpense {
-  category: ExpenseCategory;
-  amount: string;
-  status: PublicExpenseStatus;
-  anchorUrl: string;
-  validationUrl: string | null;
-}
-
-export interface PublicReceipt {
-  caseCode: string;
-  amount: string;
-  assetCode: string;
-  confirmedAt: string;
-  txUrl: string;
-}
-
-export interface PublicCaseDetail {
-  case: PublicCase;
-  /** Diagnóstico general; los informes veterinarios completos permanecen privados (RN-08). */
-  initialState: string;
-  needs: Array<{ category: ExpenseCategory; budgetAmount: string }>;
-  timeline: PublicTimelineEntry[];
+export interface PublicCaseDetail extends PublicCaseSummary {
+  story: string;
+  intakeDate: string;
+  stages: PublicStage[];
   transparency: {
-    summary: TransparencySummary;
-    contributions: PublicContribution[];
+    received: string;
+    spent: string;
+    available: string;
+    byCategory: Array<{ category: ExpenseCategory; amount: string }>;
     expenses: PublicExpense[];
   };
+  contributions: PublicContribution[];
 }
 
+export interface CatalogServiceConfig {
+  explorerBaseUrl: string;
+  /** Convierte una clave del almacén de evidencias (o una ruta de public/) en una URL pública. */
+  evidenceUrl: (keyOrPath: string) => string;
+}
+
+const CATEGORIES: ExpenseCategory[] = [
+  "medicamentos",
+  "atencion_veterinaria",
+  "alimentacion",
+  "rehabilitacion",
+  "traslado_liberacion",
+];
+
 /**
- * Lado de lectura público (RF-CAT-01, RF-CAT-02). Construye únicamente proyecciones públicas: ningún
- * identificador interno, usuario ni dato de donante sale de aquí (QA-SEG-01).
+ * Lado de lectura público (RF-CAT-01, RF-CAT-02). Solo construye proyecciones públicas: ningún identificador
+ * interno, correo, nombre ni teléfono sale de aquí (QA-SEG-01). Las billeteras sí son públicas: están en la red.
  */
 export class CatalogService {
   constructor(
     private readonly reader: CatalogReader,
-    private readonly explorerBaseUrl: string,
+    private readonly config: CatalogServiceConfig,
   ) {}
 
-  async list(): Promise<PublicCase[]> {
-    return (await this.reader.listCases()).map((row) => this.toPublic(row));
+  async listCases(): Promise<PublicCaseSummary[]> {
+    const rows = await this.reader.listCases();
+    // Primero los casos en tratamiento; después los recuperados.
+    return rows
+      .map((row) => this.summary(row))
+      .sort((a, b) => Number(a.recovered) - Number(b.recovered) || a.code.localeCompare(b.code));
   }
 
-  /** Comprobante de un aporte (RF-COM-01). No incluye datos del donante. */
-  async receipt(txHash: string): Promise<PublicReceipt | null> {
-    if (!isSha256Hex(txHash)) return null;
-    const row = await this.reader.getReceipt(txHash);
-    if (!row) return null;
-    return {
-      caseCode: row.caseCode,
-      amount: row.amount,
-      assetCode: row.assetCode,
-      confirmedAt: row.confirmedAt.toISOString(),
-      txUrl: explorerTxUrl(this.explorerBaseUrl, row.txHash),
-    };
+  async recoveredCases(): Promise<PublicCaseSummary[]> {
+    return (await this.listCases()).filter((c) => c.recovered);
   }
 
-  async detail(caseCode: string): Promise<PublicCaseDetail | null> {
-    const data = await this.reader.getCaseDetailData(caseCode);
+  async caseDetail(code: string): Promise<PublicCaseDetail | null> {
+    if (!isValidCaseCode(code)) return null;
+    const data = await this.reader.getCase(code);
     if (!data) return null;
 
-    const url = (txHash: string) => explorerTxUrl(this.explorerBaseUrl, txHash);
+    const tx = (hash: string) => explorerTxUrl(this.config.explorerBaseUrl, hash);
+    const media = (keyOrPath: string | null) => (keyOrPath ? this.config.evidenceUrl(keyOrPath) : null);
+    const ordered = [...data.stages].sort((a, b) => a.position - b.position);
+    const positionOf = new Map(ordered.map((s) => [s.id, s.position]));
 
-    const publicExpenses: PublicExpense[] = [];
-    for (const expense of data.expenses) {
-      const status = publicExpenseStatus(expense.status);
-      if (status && expense.anchorTxHash) {
-        publicExpenses.push({
-          category: expense.category,
-          amount: expense.amount,
-          status,
-          anchorUrl: url(expense.anchorTxHash),
-          validationUrl: expense.validationTxHash ? url(expense.validationTxHash) : null,
-        });
-      }
-    }
+    const expensesOf = (stageId: string) => data.expenses.filter((e) => e.stageId === stageId);
+    let previousFull = true;
+    const stages: PublicStage[] = ordered.map((stage) => {
+      const covered = data.coveredByStage[stage.id] ?? "0";
+      const milestones = data.milestones
+        .filter((m) => m.stageId === stage.id)
+        .sort((a, b) => a.occurredOn.localeCompare(b.occurredOn));
+      const result: PublicStage = {
+        position: stage.position,
+        name: stage.name,
+        covers: stage.covers,
+        cost: normalize(stage.cost),
+        covered: normalize(covered),
+        spent: sumAmounts(expensesOf(stage.id).map((e) => e.amount)),
+        status: stage.status,
+        photoUrl: media(stage.photoPath) ?? media(milestones.at(-1)?.photoKey ?? null),
+        waitingForPrevious: !previousFull && toStroops(covered) === 0n,
+        expenses: expensesOf(stage.id).map((e) => ({
+          providerName: e.providerName,
+          invoiceNumber: e.invoiceNumber,
+          amount: normalize(e.amount),
+          validationLevel: e.validationLevel,
+          invoiceUrl: this.config.evidenceUrl(e.invoiceKey),
+          txUrl: tx(e.txHash),
+        })),
+        milestones: milestones.map((m) => ({
+          occurredOn: m.occurredOn,
+          description: m.description,
+          photoUrl: media(m.photoKey),
+          validationLevel: m.validationLevel,
+          txUrl: tx(m.txHash),
+        })),
+      };
+      previousFull = toStroops(covered) >= toStroops(stage.cost);
+      return result;
+    });
+
+    const expenses: PublicExpense[] = data.expenses
+      .map((e) => {
+        const position = positionOf.get(e.stageId) ?? 0;
+        const stageName = ordered.find((s) => s.id === e.stageId)?.name ?? "";
+        return {
+          occurredOn: e.occurredOn,
+          stagePosition: position,
+          stageName,
+          concept: e.concept ?? stageName,
+          category: e.category,
+          providerName: e.providerName,
+          invoiceNumber: e.invoiceNumber,
+          amount: normalize(e.amount),
+          validationLevel: e.validationLevel,
+          invoiceUrl: this.config.evidenceUrl(e.invoiceKey),
+          txUrl: tx(e.txHash),
+        };
+      })
+      .sort((a, b) => b.occurredOn.localeCompare(a.occurredOn));
 
     const received = sumAmounts(data.contributions.map((c) => c.amount));
-    const total = (status: PublicExpenseStatus) =>
-      sumAmounts(publicExpenses.filter((e) => e.status === status).map((e) => e.amount));
+    const spent = sumAmounts(expenses.map((e) => e.amount));
+    const available = toStroops(received) - toStroops(spent);
 
     return {
-      case: this.toPublic({ ...data.row, raisedAmount: received }),
-      initialState: data.row.record.initialState,
-      needs: data.needs,
-      timeline: buildTimeline(data.milestones).map((entry) => ({
-        ...entry,
-        anchorUrl: url(entry.anchorTxHash),
-        validationUrl: entry.validationTxHash ? url(entry.validationTxHash) : null,
-      })),
+      ...this.summary(data),
+      story: data.row.story,
+      intakeDate: data.row.intakeDate,
+      stages,
       transparency: {
-        summary: transparencySummary({
-          received,
-          spentVerified: total("verificado"),
-          spentPending: total("pendiente"),
-        }),
-        contributions: data.contributions.map((c) => ({
-          amount: c.amount,
-          assetCode: c.assetCode,
-          confirmedAt: c.confirmedAt.toISOString(),
-          txUrl: url(c.txHash),
+        received,
+        spent,
+        available: fromStroops(available > 0n ? available : 0n),
+        byCategory: CATEGORIES.map((category) => ({
+          category,
+          amount: sumAmounts(expenses.filter((e) => e.category === category).map((e) => e.amount)),
         })),
-        expenses: publicExpenses,
+        expenses,
       },
+      contributions: data.contributions
+        .map((c) => ({
+          donorAccount: c.donorAccount,
+          amount: normalize(c.amount),
+          confirmedAt: c.confirmedAt.toISOString(),
+          txUrl: tx(c.txHash),
+          allocations: c.allocations
+            .map((a) => ({ position: positionOf.get(a.stageId) ?? 0, amount: normalize(a.amount) }))
+            .sort((a, b) => a.position - b.position),
+        }))
+        .sort((a, b) => b.confirmedAt.localeCompare(a.confirmedAt)),
     };
   }
 
-  private toPublic(row: CatalogCaseRow): PublicCase {
-    return toPublicCase(row.record, row.raisedAmount, row.centerName);
+  private summary({ row, stages, coveredByStage }: CaseWithFunding): PublicCaseSummary {
+    const funding = stages.map((s) => ({ position: s.position, cost: s.cost, covered: coveredByStage[s.id] ?? "0" }));
+    const goal = sumAmounts(stages.map((s) => s.cost));
+    const raised = sumAmounts(funding.map((s) => s.covered));
+    const recovered = row.status === "recuperado";
+    const ordered = [...stages].sort((a, b) => a.position - b.position);
+
+    return {
+      code: row.code,
+      commonName: row.speciesPublic ? row.commonName : null,
+      scientificName: row.speciesPublic ? row.scientificName : null,
+      ngo: row.ngo,
+      shortStory: row.shortStory,
+      photoUrl: row.photoPath ? this.config.evidenceUrl(row.photoPath) : null,
+      chip: chipFor(row, ordered),
+      needs: recovered
+        ? ordered.map((s) => s.name)
+        : ordered.filter((s) => toStroops(coveredByStage[s.id] ?? "0") < toStroops(s.cost)).map((s) => s.name),
+      recovered,
+      outcome: row.outcome,
+      outcomeLabel: row.outcomeLabel,
+      outcomeDate: row.outcomeDate,
+      goal,
+      raised,
+      remaining: remainingToGoal(funding),
+      progressPercent: fundingProgress(goal, raised),
+    };
   }
+}
+
+function chipFor(row: CaseRow, ordered: Array<{ shortName: string; status: StageStatus }>): CaseChip {
+  if (row.status === "recuperado") {
+    return { label: row.outcomeLabel ?? "Recuperado", tone: row.outcome === "liberado" ? "logro" : "reserva" };
+  }
+  const current =
+    ordered.find((s) => s.status === "en_curso") ?? ordered.find((s) => s.status === "pendiente") ?? ordered.at(-1);
+  return { label: current?.shortName ?? "Ingreso", tone: "etapa" };
+}
+
+function normalize(amount: string): string {
+  return fromStroops(toStroops(amount));
 }

@@ -1,138 +1,180 @@
-import { asc, eq, sql } from "drizzle-orm";
-import type { CaseRecord } from "@/modules/cases";
-import type { CaseDetailData, CatalogCaseRow, CatalogReader, ReceiptRow } from "@/modules/catalog";
-import type { ExpenseRecord } from "@/modules/expenses";
-import type { MilestoneRecord } from "@/modules/milestones";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import type {
+  CaseDetailData,
+  CaseRow,
+  CaseWithFunding,
+  CatalogReader,
+  StageRow,
+} from "@/modules/catalog";
 import type { Db } from "../client";
-import { cases, centers, contributions, expenses, milestones, needs } from "../schema";
+import {
+  cases,
+  contributionAllocations,
+  contributions,
+  expenses,
+  milestones,
+  ngos,
+  providers,
+  stages,
+} from "../schema";
 
-type CaseRow = typeof cases.$inferSelect;
+const caseColumns = {
+  id: cases.id,
+  code: cases.code,
+  commonName: cases.commonName,
+  scientificName: cases.scientificName,
+  group: cases.group,
+  speciesPublic: cases.speciesPublic,
+  shortStory: cases.shortStory,
+  story: cases.story,
+  photoPath: cases.photoPath,
+  intakeDate: cases.intakeDate,
+  status: cases.status,
+  outcome: cases.outcome,
+  outcomeLabel: cases.outcomeLabel,
+  outcomeDate: cases.outcomeDate,
+  ngoSlug: ngos.slug,
+  ngoName: ngos.name,
+};
 
-export function toCaseRecord(row: CaseRow): CaseRecord {
-  return {
-    id: row.id,
-    code: row.code,
-    centerId: row.centerId,
-    species: row.species,
-    speciesPublic: row.speciesPublic,
-    intakeDate: row.intakeDate,
-    initialState: row.initialState,
-    goalAmount: row.goalAmount,
-    currentStage: row.currentStage,
-    finalDestination: row.finalDestination,
-  };
+function toCaseRow(r: Omit<CaseRow, "ngo"> & { ngoSlug: string; ngoName: string }): CaseRow {
+  const { ngoSlug, ngoName, ...rest } = r;
+  return { ...rest, ngo: { slug: ngoSlug, name: ngoName } };
 }
 
-export function toExpenseRecord(row: typeof expenses.$inferSelect): ExpenseRecord {
-  return {
-    id: row.id,
-    caseId: row.caseId,
-    category: row.category,
-    amount: row.amount,
-    supportHash: row.supportHash,
-    status: row.status,
-    registeredBy: row.registeredBy,
-    validatedBy: row.validatedBy,
-    anchorTxHash: row.anchorTxHash,
-    validationTxHash: row.validationTxHash,
-  };
-}
-
-function toMilestoneRecord(row: typeof milestones.$inferSelect): MilestoneRecord {
-  return {
-    id: row.id,
-    caseId: row.caseId,
-    stage: row.stage,
-    occurredAt: row.occurredAt,
-    description: row.description,
-    evidenceHash: row.evidenceHash,
-    validationLevel: row.validationLevel,
-    registeredBy: row.registeredBy,
-    validatedBy: row.validatedBy,
-    anchorTxHash: row.anchorTxHash,
-    validationTxHash: row.validationTxHash,
-  };
-}
-
-/** Lector del lado público: solo consulta la base de datos (ADR-06). */
+/** Lector del lado público: solo la base de datos, solo ONG aprobadas y solo lo confirmado en la red. */
 export class DbCatalogReader implements CatalogReader {
   constructor(private readonly db: Db) {}
 
-  async listCases(): Promise<CatalogCaseRow[]> {
+  async listCases(): Promise<CaseWithFunding[]> {
     const rows = await this.db
-      .select({ record: cases, centerName: centers.name })
+      .select(caseColumns)
       .from(cases)
-      .innerJoin(centers, eq(cases.centerId, centers.id))
+      .innerJoin(ngos, eq(ngos.id, cases.ngoId))
+      .where(eq(ngos.status, "aprobada"))
       .orderBy(asc(cases.code));
-
-    const totals = await this.db
-      .select({
-        caseId: contributions.caseId,
-        total: sql<string>`coalesce(sum(${contributions.amount}), 0)`,
-      })
-      .from(contributions)
-      .groupBy(contributions.caseId);
-    const raisedByCase = new Map(totals.map((t) => [t.caseId, t.total]));
-
-    return rows.map((row) => ({
-      record: toCaseRecord(row.record),
-      centerName: row.centerName,
-      raisedAmount: raisedByCase.get(row.record.id) ?? "0",
-    }));
+    return this.withFunding(rows.map(toCaseRow));
   }
 
-  async getReceipt(txHash: string): Promise<ReceiptRow | null> {
-    const [row] = await this.db
-      .select({
-        caseCode: cases.code,
-        amount: contributions.amount,
-        assetCode: contributions.assetCode,
-        confirmedAt: contributions.confirmedAt,
-        txHash: contributions.txHash,
-      })
-      .from(contributions)
-      .innerJoin(cases, eq(contributions.caseId, cases.id))
-      .where(eq(contributions.txHash, txHash))
-      .limit(1);
-    return row ?? null;
-  }
-
-  async getCaseDetailData(caseCode: string): Promise<CaseDetailData | null> {
+  async getCase(code: string): Promise<CaseDetailData | null> {
     const [found] = await this.db
-      .select({ record: cases, centerName: centers.name })
+      .select(caseColumns)
       .from(cases)
-      .innerJoin(centers, eq(cases.centerId, centers.id))
-      .where(eq(cases.code, caseCode))
+      .innerJoin(ngos, eq(ngos.id, cases.ngoId))
+      .where(and(eq(cases.code, code), eq(ngos.status, "aprobada")))
       .limit(1);
     if (!found) return null;
 
-    const caseId = found.record.id;
-    const [needRows, milestoneRows, expenseRows, contributionRows] = await Promise.all([
-      this.db.select().from(needs).where(eq(needs.caseId, caseId)).orderBy(asc(needs.category)),
-      this.db.select().from(milestones).where(eq(milestones.caseId, caseId)),
-      this.db.select().from(expenses).where(eq(expenses.caseId, caseId)).orderBy(asc(expenses.createdAt)),
+    const [base] = await this.withFunding([toCaseRow(found)]);
+    if (!base) return null;
+    const caseId = found.id;
+
+    const [contributionRows, allocationRows, expenseRows, milestoneRows] = await Promise.all([
       this.db
-        .select()
+        .select({
+          id: contributions.id,
+          txHash: contributions.txHash,
+          donorAccount: contributions.donorAccount,
+          amount: contributions.amount,
+          confirmedAt: contributions.confirmedAt,
+        })
         .from(contributions)
-        .where(eq(contributions.caseId, caseId))
-        .orderBy(asc(contributions.confirmedAt)),
+        .where(and(eq(contributions.caseId, caseId), eq(contributions.status, "confirmada"))),
+      this.db
+        .select({
+          contributionId: contributionAllocations.contributionId,
+          stageId: contributionAllocations.stageId,
+          amount: contributionAllocations.amount,
+        })
+        .from(contributionAllocations)
+        .innerJoin(contributions, eq(contributions.id, contributionAllocations.contributionId))
+        .where(and(eq(contributions.caseId, caseId), eq(contributions.status, "confirmada"))),
+      this.db
+        .select({
+          stageId: expenses.stageId,
+          providerName: providers.name,
+          category: expenses.category,
+          concept: expenses.concept,
+          amount: expenses.amount,
+          occurredOn: expenses.occurredOn,
+          invoiceNumber: expenses.invoiceNumber,
+          invoiceKey: expenses.invoiceKey,
+          txHash: expenses.txHash,
+          validationLevel: expenses.validationLevel,
+        })
+        .from(expenses)
+        .innerJoin(providers, eq(providers.id, expenses.providerId))
+        .where(and(eq(expenses.caseId, caseId), eq(expenses.status, "confirmada"))),
+      this.db
+        .select({
+          stageId: milestones.stageId,
+          occurredOn: milestones.occurredOn,
+          description: milestones.description,
+          photoKey: milestones.photoKey,
+          txHash: milestones.txHash,
+          validationLevel: milestones.validationLevel,
+        })
+        .from(milestones)
+        .where(and(eq(milestones.caseId, caseId), eq(milestones.status, "confirmada"))),
     ]);
 
     return {
-      row: {
-        record: toCaseRecord(found.record),
-        centerName: found.centerName,
-        raisedAmount: "0",
-      },
-      needs: needRows.map((n) => ({ category: n.category, budgetAmount: n.budgetAmount })),
-      milestones: milestoneRows.map(toMilestoneRecord),
-      expenses: expenseRows.map(toExpenseRecord),
+      ...base,
       contributions: contributionRows.map((c) => ({
-        amount: c.amount,
-        assetCode: c.assetCode,
-        confirmedAt: c.confirmedAt,
         txHash: c.txHash,
+        donorAccount: c.donorAccount,
+        amount: c.amount,
+        confirmedAt: c.confirmedAt ?? new Date(0),
+        allocations: allocationRows
+          .filter((a) => a.contributionId === c.id)
+          .map((a) => ({ stageId: a.stageId, amount: a.amount })),
       })),
+      // Las filas confirmadas siempre tienen hash (restricción de la base de datos).
+      expenses: expenseRows.map((e) => ({ ...e, txHash: e.txHash ?? "" })),
+      milestones: milestoneRows.map((m) => ({ ...m, txHash: m.txHash ?? "" })),
     };
+  }
+
+  /** Agrega a cada caso sus etapas y lo cubierto por etapa con los aportes confirmados. */
+  private async withFunding(rows: CaseRow[]): Promise<CaseWithFunding[]> {
+    if (rows.length === 0) return [];
+    const ids = rows.map((r) => r.id);
+
+    const [stageRows, coveredRows] = await Promise.all([
+      this.db
+        .select({
+          id: stages.id,
+          caseId: stages.caseId,
+          position: stages.position,
+          name: stages.name,
+          shortName: stages.shortName,
+          covers: stages.covers,
+          cost: stages.cost,
+          photoPath: stages.photoPath,
+          status: stages.status,
+        })
+        .from(stages)
+        .where(inArray(stages.caseId, ids))
+        .orderBy(asc(stages.position)),
+      this.db
+        .select({
+          stageId: contributionAllocations.stageId,
+          total: sql<string>`sum(${contributionAllocations.amount})`,
+        })
+        .from(contributionAllocations)
+        .innerJoin(contributions, eq(contributions.id, contributionAllocations.contributionId))
+        .where(and(inArray(contributions.caseId, ids), eq(contributions.status, "confirmada")))
+        .groupBy(contributionAllocations.stageId),
+    ]);
+
+    const covered = Object.fromEntries(coveredRows.map((r) => [r.stageId, r.total]));
+    return rows.map((row) => {
+      const own: StageRow[] = stageRows.filter((s) => s.caseId === row.id).map(({ caseId: _, ...s }) => s);
+      return {
+        row,
+        stages: own,
+        coveredByStage: Object.fromEntries(own.map((s) => [s.id, covered[s.id] ?? "0"])),
+      };
+    });
   }
 }
