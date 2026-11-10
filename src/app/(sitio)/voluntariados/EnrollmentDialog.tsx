@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { formatDayMonth } from "@/app/_lib/format";
-import { IconoCheck } from "@/components/iconos";
+import { IconoCheck, IconoMenu } from "@/components/iconos";
 import { buttonClass } from "@/components/ui";
 import type { PublicVolunteering } from "@/platform/db/repositories/volunteering";
 import { submitEnrollment } from "./actions";
@@ -62,13 +62,13 @@ export function EnrollmentDialog({
   const free = v.capacity - v.occupied;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-texto/60 p-4" onClick={close}>
+    <div className="anim-fondo fixed inset-0 z-50 flex items-center justify-center bg-texto/60 p-4" onClick={close}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-inscripcion"
         onClick={(e) => e.stopPropagation()}
-        className="grid max-h-[92vh] w-full max-w-5xl overflow-auto rounded-3xl bg-white shadow-2xl md:grid-cols-[1fr_1.6fr]"
+        className="grid max-h-[92vh] w-full max-w-5xl anim-ventana overflow-auto rounded-[28px] bg-white shadow-2xl md:grid-cols-[1fr_1.6fr]"
       >
         <aside className="space-y-4 bg-profundo p-8 text-white">
           <span className="inline-block rounded-full bg-arena px-3 py-1 text-sm font-semibold text-texto">Voluntariado</span>
@@ -98,9 +98,9 @@ export function EnrollmentDialog({
               type="button"
               onClick={close}
               aria-label="Cerrar"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-arena text-xl"
+              className="mov-hover flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-arena text-texto transition-[transform,border-color,color] duration-200 ease-(--ease-spring) hover:rotate-90 hover:border-bosque hover:text-bosque disabled:cursor-not-allowed disabled:opacity-40"
             >
-              ×
+              <IconoMenu abierto className="h-5 w-5" />
             </button>
           </div>
 

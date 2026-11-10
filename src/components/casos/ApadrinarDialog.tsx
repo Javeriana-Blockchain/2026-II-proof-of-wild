@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { formatAmount } from "@/app/_lib/format";
 import { useWallet, walletErrorMessage } from "@/components/billetera/WalletProvider";
-import { IconoCheck } from "@/components/iconos";
-import { buttonClass } from "@/components/ui";
+import { IconoCheck, IconoMenu } from "@/components/iconos";
+import { buttonClass, Spinner } from "@/components/ui";
 import { fromStroops, toStroops } from "@/lib/amount";
 import { shortAccount } from "@/lib/stellar-account";
 import { allocateContribution, type StageAllocation } from "@/modules/cases";
@@ -152,13 +152,13 @@ export function ApadrinarDialog({
   const allocation = receipt?.allocation ?? preview.allocation;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-texto/60 p-4" onClick={() => !busy && close()}>
+    <div className="anim-fondo fixed inset-0 z-50 flex items-center justify-center bg-texto/60 p-4" onClick={() => !busy && close()}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-apadrinar"
         onClick={(e) => e.stopPropagation()}
-        className="grid max-h-[94vh] w-full max-w-5xl overflow-auto rounded-3xl bg-white shadow-2xl md:grid-cols-[1fr_1.4fr]"
+        className="anim-ventana grid max-h-[94vh] w-full max-w-5xl overflow-auto rounded-[28px] bg-white shadow-2xl md:grid-cols-[1fr_1.4fr]"
       >
         <aside className="space-y-4 bg-crema p-7">
           <div className="relative aspect-[4/2.2] overflow-hidden rounded-2xl bg-white">
@@ -212,9 +212,9 @@ export function ApadrinarDialog({
               onClick={close}
               disabled={busy}
               aria-label="Cerrar"
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-arena text-xl disabled:opacity-40"
+              className="mov-hover flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-arena text-texto transition-[transform,border-color,color] duration-200 ease-(--ease-spring) hover:rotate-90 hover:border-bosque hover:text-bosque disabled:cursor-not-allowed disabled:opacity-40"
             >
-              ×
+              <IconoMenu abierto className="h-5 w-5" />
             </button>
           </div>
 
@@ -291,7 +291,7 @@ export function ApadrinarDialog({
                         disabled={!fits || busy}
                         aria-pressed={amount === s}
                         onClick={() => setAmount(s)}
-                        className={`rounded-2xl border py-3 text-lg font-semibold transition disabled:opacity-40 ${amount === s ? "border-bosque bg-bosque text-white" : "border-arena"}`}
+                        className={`mov-hover cifras cursor-pointer rounded-xl border-2 py-3 text-lg font-semibold transition-[transform,background-color,border-color,color] duration-200 ease-(--ease-spring) hover:-translate-y-0.5 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 ${amount === s ? "border-bosque bg-bosque text-white" : "border-arena hover:border-bosque hover:text-bosque"}`}
                       >
                         {s} USDC
                       </button>
@@ -341,7 +341,7 @@ export function ApadrinarDialog({
               {error ? (
                 <div role="alert" className="flex items-center justify-between gap-4 rounded-2xl border border-error px-5 py-4 text-error">
                   <span className="font-medium">{error}</span>
-                  <button type="button" onClick={confirm} className="rounded-full bg-error px-5 py-2 font-semibold text-white">
+                  <button type="button" onClick={confirm} className="mov-hover cursor-pointer rounded-xl bg-error px-5 py-2 font-semibold text-white transition-transform duration-200 ease-(--ease-spring) hover:-translate-y-0.5 active:scale-95">
                     Reintentar
                   </button>
                 </div>
@@ -353,6 +353,7 @@ export function ApadrinarDialog({
                 disabled={busy || !preview.allocation}
                 className={buttonClass("primario", "w-full py-4 text-lg")}
               >
+                {busy ? <Spinner className="h-5 w-5" /> : null}
                 {busy ? STEP_LABELS[step as Exclude<Step, "idle">] : `Confirmar aporte de ${preview.allocation ? formatAmount(amount.replace(",", ".")) : "…"}`}
               </button>
               <p className="text-center text-sm text-secundario">

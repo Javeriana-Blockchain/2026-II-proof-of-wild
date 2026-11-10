@@ -3,15 +3,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatAmount, formatDate } from "@/app/_lib/format";
-import { ContributionsTable } from "@/components/casos/ContributionsTable";
+import { getSession } from "@/app/_lib/session";
 import { ApadrinarDialog } from "@/components/casos/ApadrinarDialog";
+import { ContributionsTable } from "@/components/casos/ContributionsTable";
 import { PersonalizedTimeline } from "@/components/casos/PersonalizedTimeline";
 import { TransparencyPanel } from "@/components/casos/TransparencyPanel";
 import { IconoFlecha } from "@/components/iconos";
+import { ContourField } from "@/components/mapa/ContourField";
+import { RouteMap } from "@/components/mapa/RouteMap";
 import { buttonClass, Chip, ProgressBar } from "@/components/ui";
-import { getSession } from "@/app/_lib/session";
 import { getExplorerEnv } from "@/platform/config/env";
 import { getCatalogService } from "@/platform/container";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +37,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return { title: `${name} · ${detail.code}`, description: detail.shortStory };
 }
 
-/** Detalle del caso: la pantalla principal de la demo. Cabecera, historia, bloque de apoyo y tres pestañas. */
+/**
+ * Detalle del caso: la pantalla principal de la demo. La foto y la historia, el bloque de apoyo, la ruta del
+ * tratamiento a todo el ancho y tres pestañas: línea de tiempo, transparencia y aportes.
+ */
 export default async function CaseDetailPage({ params, searchParams }: Params) {
   const [{ codigo }, { pestana, apadrinar }, session] = await Promise.all([params, searchParams, getSession()]);
   const detail = await getCatalogService().caseDetail(codigo);
@@ -45,80 +51,134 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
   const canSponsor = !detail.recovered && Number(detail.remaining) > 0;
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-8">
-      <Link href="/#casos" className="inline-flex items-center gap-2 font-medium text-bosque underline">
-        <IconoFlecha izquierda /> Volver a casos
-      </Link>
+    <main>
+      <section className="mx-auto max-w-7xl px-4 pt-6 pb-10 sm:px-8">
+        <Link href="/#casos" className="enlace mb-6 inline-flex items-center gap-2">
+          <IconoFlecha izquierda /> Volver a casos
+        </Link>
 
-      <header className="grid gap-8 lg:grid-cols-[1fr_1.4fr_1fr]">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-white shadow-md">
-          {detail.photoUrl ? (
-            <Image src={detail.photoUrl} alt={name} fill priority sizes="(min-width: 1024px) 400px, 100vw" className="object-cover" />
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-start">
+          <Reveal as="figure" variant="capa" className="relative mr-6 mb-6">
+            <span aria-hidden className="absolute -right-3 -bottom-3 h-full w-full rounded-[32px] bg-arena" />
+            <span aria-hidden className="absolute -right-6 -bottom-6 h-full w-full rounded-[32px] bg-salvia" />
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[32px] bg-salvia ring-4 ring-white">
+              {detail.photoUrl ? (
+                <Image
+                  src={detail.photoUrl}
+                  alt={name}
+                  fill
+                  priority
+                  sizes="(min-width: 1024px) 45vw, 100vw"
+                  className="object-cover"
+                />
+              ) : null}
+              <span className="absolute top-4 left-4">
+                <Chip tone={detail.chip.tone === "logro" ? "logro" : "etapa"}>{detail.chip.label}</Chip>
+              </span>
+            </div>
+          </Reveal>
+
+          <div className="space-y-5">
+            <Reveal variant="sube" className="space-y-2">
+              <h1 className="text-6xl font-bold sm:text-7xl">{name}</h1>
+              {detail.scientificName ? <p className="cientifico text-2xl text-secundario">{detail.scientificName}</p> : null}
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-secundario">
+                <span className="cifras font-semibold">{detail.code}</span>
+                <span aria-hidden>·</span>
+                <span>Ingresó el {formatDate(detail.intakeDate)}</span>
+                {detail.recovered && detail.outcomeDate ? (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span>
+                      {detail.outcomeLabel} el {formatDate(detail.outcomeDate)}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+              <Link href={`/ong/${detail.ngo.slug}`} className="enlace inline-block text-lg">
+                {detail.ngo.name}
+              </Link>
+            </Reveal>
+            <Reveal as="p" variant="sube" delay={1} className="max-w-prose text-lg leading-relaxed">
+              {detail.story}
+            </Reveal>
+
+            <Reveal as="aside" variant="pop" delay={2}
+              aria-label="Apoyo al caso"
+              className="relative isolate overflow-hidden rounded-[28px] bg-profundo p-6 text-white sm:p-7"
+            >
+              <ContourField variant="noche" seed={5} className="absolute inset-0 -z-10 h-full w-full opacity-80" />
+              <dl className="grid grid-cols-2 gap-6">
+                <div>
+                  <dt className="rotulo text-salvia">Costo total</dt>
+                  <dd className="cifras mt-1 font-display text-4xl font-bold">{formatAmount(detail.goal)}</dd>
+                </div>
+                <div>
+                  <dt className="rotulo text-salvia">Recaudado</dt>
+                  <dd className="cifras mt-1 font-display text-4xl font-bold">{formatAmount(detail.raised)}</dd>
+                </div>
+              </dl>
+              <ProgressBar percent={detail.progressPercent} tone="oscuro" className="mt-5" />
+              {canSponsor ? (
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+                  <p className="cifras text-lg">
+                    Faltan <strong>{formatAmount(detail.remaining)}</strong>
+                  </p>
+                  <Link
+                    href={`/casos/${detail.code}?pestana=${tab}&apadrinar=1`}
+                    scroll={false}
+                    className={buttonClass("arena", "px-7 py-3.5 text-lg")}
+                  >
+                    Apadrinar este caso <IconoFlecha />
+                  </Link>
+                </div>
+              ) : (
+                <p className="mt-5 font-semibold text-arena">
+                  {detail.recovered ? `Meta cumplida · ${detail.outcomeLabel}` : "Meta cumplida"}
+                </p>
+              )}
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="titulo-ruta" className="border-y border-arena/70 bg-white">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-8 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-center">
+          <Reveal as="h2" variant="sube" id="titulo-ruta" className="text-4xl">
+            Ruta del tratamiento
+          </Reveal>
+          <RouteMap stages={detail.stages} label={`Ruta del tratamiento de ${name}`} className="pt-6" />
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl space-y-6 px-4 py-10 sm:px-8">
+        <nav aria-label="Secciones del caso" className="flex flex-wrap gap-2 rounded-2xl bg-white/70 p-1.5 ring-1 ring-arena/70 sm:w-fit">
+          {TABS.map((t) => (
+            <Link
+              key={t.id}
+              href={`/casos/${detail.code}?pestana=${t.id}`}
+              scroll={false}
+              aria-current={t.id === tab ? "page" : undefined}
+              className={`mov-hover rounded-xl px-5 py-2.5 font-semibold transition-[background-color,color,transform] duration-200 ease-(--ease-spring) active:scale-95 ${
+                t.id === tab ? "bg-bosque text-white" : "text-texto hover:-translate-y-0.5 hover:bg-crema hover:text-bosque"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div key={tab} className="anim-ventana">
+          {tab === "linea" ? <PersonalizedTimeline caseCode={detail.code} stages={detail.stages} /> : null}
+          {tab === "transparencia" ? <TransparencyPanel transparency={detail.transparency} /> : null}
+          {tab === "aportes" ? (
+            <ContributionsTable
+              contributions={detail.contributions}
+              sponsorHref={canSponsor ? `/casos/${detail.code}?pestana=aportes&apadrinar=1` : null}
+            />
           ) : null}
         </div>
-
-        <div className="space-y-3">
-          <Chip tone={detail.chip.tone === "logro" ? "logro" : "etapa"}>{detail.chip.label}</Chip>
-          <p className="text-secundario">
-            {detail.code} · Ingresó el {formatDate(detail.intakeDate)}
-            {detail.recovered && detail.outcomeDate ? ` · ${detail.outcomeLabel} el ${formatDate(detail.outcomeDate)}` : ""}
-          </p>
-          <h1 className="text-5xl leading-tight sm:text-6xl">{name}</h1>
-          {detail.scientificName ? <p className="text-secundario italic">{detail.scientificName}</p> : null}
-          <Link href={`/ong/${detail.ngo.slug}`} className="block text-lg font-semibold text-bosque underline">
-            {detail.ngo.name}
-          </Link>
-          <p className="text-lg leading-relaxed">{detail.story}</p>
-        </div>
-
-        <aside className="flex flex-col justify-center gap-4 self-start rounded-2xl border border-arena bg-white p-7">
-          <div className="flex gap-8">
-            <div>
-              <p className="text-sm text-secundario">Costo total</p>
-              <p className="font-serif text-3xl">{formatAmount(detail.goal)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-secundario">Recaudado</p>
-              <p className="font-serif text-3xl">{formatAmount(detail.raised)}</p>
-            </div>
-          </div>
-          <ProgressBar percent={detail.progressPercent} />
-          {canSponsor ? (
-            <>
-              <p>
-                Faltan <strong>{formatAmount(detail.remaining)}</strong>
-              </p>
-              <Link href={`/casos/${detail.code}?pestana=${tab}&apadrinar=1`} className={buttonClass("primario", "py-3 text-lg")}>
-                Apadrinar este caso <IconoFlecha />
-              </Link>
-            </>
-          ) : (
-            <p className="font-medium text-bosque">
-              {detail.recovered ? `Meta cumplida · ${detail.outcomeLabel}` : "Meta cumplida"}
-            </p>
-          )}
-        </aside>
-      </header>
-
-      <nav aria-label="Secciones del caso" className="flex flex-wrap gap-3 border-b border-arena pb-4">
-        {TABS.map((t) => (
-          <Link
-            key={t.id}
-            href={`/casos/${detail.code}?pestana=${t.id}`}
-            scroll={false}
-            aria-current={t.id === tab ? "page" : undefined}
-            className={`rounded-full px-5 py-2.5 text-lg font-medium transition ${
-              t.id === tab ? "bg-bosque text-white" : "border border-arena bg-white hover:border-bosque"
-            }`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
-
-      {tab === "linea" ? <PersonalizedTimeline caseCode={detail.code} stages={detail.stages} /> : null}
-      {tab === "transparencia" ? <TransparencyPanel transparency={detail.transparency} /> : null}
-      {tab === "aportes" ? <ContributionsTable contributions={detail.contributions} /> : null}
+      </section>
 
       {apadrinar === "1" && canSponsor ? (
         <ApadrinarDialog

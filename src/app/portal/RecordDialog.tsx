@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { CATEGORY_LABELS } from "@/app/_lib/labels";
 import { useWallet, walletErrorMessage } from "@/components/billetera/WalletProvider";
-import { IconoCheck } from "@/components/iconos";
+import { IconoCheck, IconoMenu } from "@/components/iconos";
 import { buttonClass } from "@/components/ui";
 import { shortAccount } from "@/lib/stellar-account";
 
@@ -112,13 +112,13 @@ export function RecordDialog({
   const title = kind === "gasto" ? "Registrar gasto" : "Registrar hito";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-texto/60 p-4" onClick={() => !busy && close()}>
+    <div className="anim-fondo fixed inset-0 z-50 flex items-center justify-center bg-texto/60 p-4" onClick={() => !busy && close()}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-registro"
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[94vh] w-full max-w-5xl overflow-auto rounded-3xl bg-white p-8 shadow-2xl"
+        className="max-h-[94vh] w-full max-w-5xl anim-ventana overflow-auto rounded-[28px] bg-white p-8 shadow-2xl"
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
@@ -131,8 +131,8 @@ export function RecordDialog({
                 : "Un avance del tratamiento con su foto o documento."}
             </p>
           </div>
-          <button type="button" onClick={close} disabled={busy} aria-label="Cerrar" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-arena text-xl disabled:opacity-40">
-            ×
+          <button type="button" onClick={close} disabled={busy} aria-label="Cerrar" className="mov-hover flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-arena text-texto transition-[transform,border-color,color] duration-200 ease-(--ease-spring) hover:rotate-90 hover:border-bosque hover:text-bosque disabled:cursor-not-allowed disabled:opacity-40">
+            <IconoMenu abierto className="h-5 w-5" />
           </button>
         </div>
 

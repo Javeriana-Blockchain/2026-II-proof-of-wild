@@ -240,3 +240,27 @@ html {
     transform: none !important;
   }
 }
+
+/* Ventanas (apadrinar, inscribirse): el fondo se oscurece y la ventana aparece con un pop corto. */
+.anim-fondo {
+  animation: fondo 0.25s var(--ease-out-expo) both;
+}
+.anim-ventana {
+  animation: ventana 0.45s var(--ease-spring) both;
+}
+@keyframes fondo {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ventana {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.95);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-ventana {
+    animation-name: fondo;
+  }
+}
