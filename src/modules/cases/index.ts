@@ -1,12 +1,8 @@
 export {
+  allocateContribution,
+  currentStage,
   fundingProgress,
   isValidCaseCode,
-  presentFinalDestination,
-  toPublicCase,
+  remainingToGoal,
 } from "./domain";
-export type {
-  CaseRecord,
-  FinalDestination,
-  FinalDestinationPresentation,
-  PublicCase,
-} from "./domain";
+export type { StageAllocation, StageFunding, StageStatus } from "./domain";
