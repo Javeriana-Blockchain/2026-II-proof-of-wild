@@ -5,6 +5,7 @@ export type {
   PublicCaseDetail,
   PublicCaseSummary,
   PublicContribution,
+  PublicReceipt,
   PublicExpense,
   PublicStage,
   PublicStageExpense,
@@ -21,6 +22,7 @@ export type {
   ExpenseCategory,
   ExpenseRow,
   MilestoneRow,
+  ReceiptRow,
   StageRow,
   ValidationLevel,
 } from "./repository";

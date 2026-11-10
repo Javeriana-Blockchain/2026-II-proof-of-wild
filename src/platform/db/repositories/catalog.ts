@@ -135,6 +135,36 @@ export class DbCatalogReader implements CatalogReader {
     };
   }
 
+  async getReceipt(txHash: string) {
+    const [row] = await this.db
+      .select({
+        id: contributions.id,
+        txHash: contributions.txHash,
+        caseCode: cases.code,
+        commonName: cases.commonName,
+        speciesPublic: cases.speciesPublic,
+        photoPath: cases.photoPath,
+        ngoName: ngos.name,
+        donorAccount: contributions.donorAccount,
+        amount: contributions.amount,
+        confirmedAt: contributions.confirmedAt,
+      })
+      .from(contributions)
+      .innerJoin(cases, eq(cases.id, contributions.caseId))
+      .innerJoin(ngos, eq(ngos.id, cases.ngoId))
+      .where(and(eq(contributions.txHash, txHash), eq(contributions.status, "confirmada")))
+      .limit(1);
+    if (!row || !row.confirmedAt) return null;
+    const allocations = await this.db
+      .select({ position: stages.position, stageName: stages.name, amount: contributionAllocations.amount })
+      .from(contributionAllocations)
+      .innerJoin(stages, eq(stages.id, contributionAllocations.stageId))
+      .where(eq(contributionAllocations.contributionId, row.id))
+      .orderBy(asc(stages.position));
+    const { id: _, confirmedAt, ...rest } = row;
+    return { ...rest, confirmedAt, allocations };
+  }
+
   async donorAllocations(code: string, account: string) {
     return this.db
       .select({ position: stages.position, amount: sql<string>`sum(${contributionAllocations.amount})` })

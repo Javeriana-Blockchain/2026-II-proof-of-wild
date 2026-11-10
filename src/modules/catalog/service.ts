@@ -101,6 +101,20 @@ export interface PublicCaseDetail extends PublicCaseSummary {
   contributions: PublicContribution[];
 }
 
+export interface PublicReceipt {
+  txHash: string;
+  caseCode: string;
+  caseName: string;
+  photoUrl: string | null;
+  ngoName: string;
+  /** La billetera es pública: está en la red. */
+  donorAccount: string;
+  amount: string;
+  confirmedAt: string;
+  txUrl: string;
+  allocations: Array<{ position: number; stageName: string; amount: string }>;
+}
+
 export interface CatalogServiceConfig {
   explorerBaseUrl: string;
   /** Convierte una clave del almacén de evidencias (o una ruta de public/) en una URL pública. */
@@ -234,6 +248,25 @@ export class CatalogService {
             .sort((a, b) => a.position - b.position),
         }))
         .sort((a, b) => b.confirmedAt.localeCompare(a.confirmedAt)),
+    };
+  }
+
+  /** Comprobante público de un aporte confirmado (RF-COM-01): sin datos personales, solo lo que está en la red. */
+  async receipt(txHash: string): Promise<PublicReceipt | null> {
+    if (!/^[0-9a-f]{64}$/.test(txHash)) return null;
+    const row = await this.reader.getReceipt(txHash);
+    if (!row) return null;
+    return {
+      txHash: row.txHash,
+      caseCode: row.caseCode,
+      caseName: row.speciesPublic ? row.commonName : "Especie reservada",
+      photoUrl: row.photoPath ? this.config.evidenceUrl(row.photoPath) : null,
+      ngoName: row.ngoName,
+      donorAccount: row.donorAccount,
+      amount: normalize(row.amount),
+      confirmedAt: row.confirmedAt.toISOString(),
+      txUrl: explorerTxUrl(this.config.explorerBaseUrl, row.txHash),
+      allocations: row.allocations.map((a) => ({ ...a, amount: normalize(a.amount) })),
     };
   }
 

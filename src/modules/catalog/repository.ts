@@ -92,4 +92,18 @@ export interface CatalogReader {
   getCase(code: string): Promise<CaseDetailData | null>;
   /** Lo que los aportes confirmados de una billetera asignaron a cada etapa del caso. */
   donorAllocations(code: string, account: string): Promise<Array<{ position: number; amount: string }>>;
+  getReceipt(txHash: string): Promise<ReceiptRow | null>;
+}
+
+export interface ReceiptRow {
+  txHash: string;
+  caseCode: string;
+  commonName: string;
+  speciesPublic: boolean;
+  photoPath: string | null;
+  ngoName: string;
+  donorAccount: string;
+  amount: string;
+  confirmedAt: Date;
+  allocations: Array<{ position: number; stageName: string; amount: string }>;
 }
