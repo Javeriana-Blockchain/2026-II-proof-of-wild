@@ -5,6 +5,7 @@ import { ContourField } from "@/components/mapa/ContourField";
 import { RouteMap } from "@/components/mapa/RouteMap";
 import { buttonClass, Chip } from "@/components/ui";
 import type { PublicCaseSummary } from "@/modules/catalog";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 const CAMINOS = [
   {
@@ -38,23 +39,20 @@ export function Portada({ destacado }: { destacado: PublicCaseSummary | null }) 
 
       <div className="mx-auto grid max-w-7xl items-stretch gap-10 px-4 pt-10 pb-10 sm:px-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] lg:pt-12">
         <div className="flex flex-col justify-center">
-          <h1
+          <Reveal as="h1" variant="sube"
             id="titulo-inicio"
-            data-reveal="sube"
             className="max-w-3xl text-5xl leading-[1.02] font-bold sm:text-6xl 2xl:text-7xl"
           >
             Apadrina a un animal rescatado y sigue cada paso de su recuperación
-          </h1>
-          <p data-reveal="sube" style={{ ["--d" as string]: 1 }} className="mt-5 max-w-xl text-xl text-white/90">
+          </Reveal>
+          <Reveal as="p" variant="sube" delay={1} className="mt-5 max-w-xl text-xl text-white/90">
             Todo queda registrado en Stellar y lo puedes verificar.
-          </p>
+          </Reveal>
 
           <ul className="mt-8 grid gap-3 sm:grid-cols-3">
             {CAMINOS.map((c, i) => (
-              <li
+              <Reveal as="li" variant="pop" delay={2 + i}
                 key={c.titulo}
-                data-reveal="pop"
-                style={{ ["--d" as string]: 2 + i }}
                 className="flex flex-col rounded-2xl border border-white/20 bg-profundo p-4 transition-colors duration-300 hover:border-arena/70"
               >
                 <h2 className="font-sans text-base font-bold">{c.titulo}</h2>
@@ -62,12 +60,12 @@ export function Portada({ destacado }: { destacado: PublicCaseSummary | null }) 
                 <Link href={c.href} className={buttonClass("arena", "mt-4 w-full px-3 text-center text-sm")}>
                   {c.accion}
                 </Link>
-              </li>
+              </Reveal>
             ))}
           </ul>
         </div>
 
-        <figure data-reveal="capa" style={{ ["--d" as string]: 1 }} className="relative mx-auto w-full max-w-md lg:mr-6 lg:max-w-none">
+        <Reveal as="figure" variant="capa" delay={1} className="relative mx-auto w-full max-w-md lg:mr-6 lg:max-w-none">
           {/* Capas de papel recortado detrás de la foto: profundidad solo por superposición. */}
           <span aria-hidden className="absolute -right-3 -bottom-3 h-full w-full rounded-[32px] bg-arena" />
           <span aria-hidden className="absolute -right-6 -bottom-6 h-full w-full rounded-[32px] bg-salvia/80" />
@@ -81,13 +79,13 @@ export function Portada({ destacado }: { destacado: PublicCaseSummary | null }) 
               className="object-cover object-[78%_50%]"
             />
           </div>
-        </figure>
+        </Reveal>
       </div>
 
       {destacado ? (
         <div className="border-t border-white/15">
           <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:items-center">
-            <div data-reveal="sube" className="space-y-2">
+            <Reveal variant="sube" className="space-y-2">
               <p className="font-display text-3xl font-bold">
                 <Link href={`/casos/${destacado.code}`} className="transition-colors hover:text-arena">
                   {destacado.commonName ?? "Especie reservada"}
@@ -104,7 +102,7 @@ export function Portada({ destacado }: { destacado: PublicCaseSummary | null }) 
               <Link href={`/casos/${destacado.code}`} className="inline-flex items-center gap-1 pt-1 font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena">
                 Ver su recuperación
               </Link>
-            </div>
+            </Reveal>
             <RouteMap
               stages={destacado.route}
               tone="oscuro"

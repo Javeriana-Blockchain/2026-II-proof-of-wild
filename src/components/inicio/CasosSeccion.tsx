@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CaseRow, RecoveredCard } from "@/components/casos/CaseRow";
 import { buttonClass, EmptyState } from "@/components/ui";
 import type { PublicCaseSummary } from "@/modules/catalog";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 /** «Casos»: primero los que están en tratamiento, con su ruta; después los recuperados. */
 export function CasosSeccion({ cases }: { cases: PublicCaseSummary[] }) {
@@ -12,10 +13,10 @@ export function CasosSeccion({ cases }: { cases: PublicCaseSummary[] }) {
     <section id="casos" aria-labelledby="titulo-casos" className="border-t border-arena/70">
       <div className="mx-auto max-w-7xl space-y-14 px-4 py-20 sm:px-8">
         <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-end">
-          <h2 id="titulo-casos" data-reveal="sube" className="text-5xl sm:text-6xl">
+          <Reveal as="h2" variant="sube" id="titulo-casos" className="text-5xl sm:text-6xl">
             Casos
-          </h2>
-          <div data-reveal="sube" style={{ ["--d" as string]: 1 }} className="space-y-3 lg:justify-self-end">
+          </Reveal>
+          <Reveal variant="sube" delay={1} className="space-y-3 lg:justify-self-end">
             <p className="max-w-lg text-xl text-secundario">
               Conoce a los animales que puedes apadrinar y sigue su recuperación paso a paso.
             </p>
@@ -25,7 +26,7 @@ export function CasosSeccion({ cases }: { cases: PublicCaseSummary[] }) {
                 <span className="rounded-md bg-bosque px-2.5 py-1 text-white">{recuperados.length} recuperados</span>
               </p>
             ) : null}
-          </div>
+          </Reveal>
         </header>
 
         {cases.length === 0 ? (
@@ -55,9 +56,9 @@ export function CasosSeccion({ cases }: { cases: PublicCaseSummary[] }) {
 
             {recuperados.length > 0 ? (
               <section aria-labelledby="recuperados" className="space-y-6">
-                <h3 id="recuperados" data-reveal="sube" className="text-4xl">
+                <Reveal as="h3" variant="sube" id="recuperados" className="text-4xl">
                   Casos recuperados
-                </h3>
+                </Reveal>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {recuperados.map((item, i) => (
                     <RecoveredCard key={item.code} item={item} delay={i} />

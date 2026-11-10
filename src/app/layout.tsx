@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Archivo, Zilla_Slab } from "next/font/google";
 import type { ReactNode } from "react";
 import { WalletProvider } from "@/components/billetera/WalletProvider";
-import { RevealObserver } from "@/components/movimiento/RevealObserver";
 import "./globals.css";
 
 /** Títulos en Zilla Slab (la slab de un letrero de parque); texto y rótulos en Archivo, con su eje de ancho. */
@@ -35,7 +34,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-screen antialiased">
         <WalletProvider>{children}</WalletProvider>
-        <RevealObserver />
       </body>
     </html>
   );

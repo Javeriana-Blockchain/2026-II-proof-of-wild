@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { VALIDATION_LABELS } from "@/app/_lib/labels";
 import type { ValidationLevel } from "@/modules/catalog";
 import { ContourField } from "./mapa/ContourField";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 /**
  * Botones con forma de placa de sendero (esquinas de letrero, no píldora). Suben al pasar el mouse, se hunden al
@@ -64,7 +65,18 @@ export function ValidationChip({ level, short = false }: { level: ValidationLeve
 }
 
 /** Barra de lo cubierto: una regla de mapa con el tramo recorrido en bosque. */
-export function ProgressBar({ percent, label = "Porcentaje recaudado", className = "" }: { percent: number; label?: string; className?: string }) {
+export function ProgressBar({
+  percent,
+  label = "Porcentaje recaudado",
+  className = "",
+  tone = "claro",
+}: {
+  percent: number;
+  label?: string;
+  className?: string;
+  /** «oscuro» sobre fondos profundo o bosque. */
+  tone?: "claro" | "oscuro";
+}) {
   const value = Math.max(0, Math.min(100, percent));
   return (
     <div
@@ -73,10 +85,10 @@ export function ProgressBar({ percent, label = "Porcentaje recaudado", className
       aria-valuemax={100}
       aria-valuenow={Math.round(value)}
       aria-label={label}
-      className={`relative h-2.5 w-full overflow-hidden rounded-full bg-arena/45 ${className}`}
+      className={`relative h-2.5 w-full overflow-hidden rounded-full ${tone === "oscuro" ? "bg-white/20" : "bg-arena/45"} ${className}`}
     >
       <div
-        className="h-full rounded-full bg-bosque transition-[width] duration-700 ease-(--ease-out-expo)"
+        className={`h-full rounded-full transition-[width] duration-700 ease-(--ease-out-expo) ${tone === "oscuro" ? "bg-arena" : "bg-bosque"}`}
         style={{ width: `${value}%` }}
       />
     </div>
@@ -138,8 +150,7 @@ export function EmptyState({
 }) {
   const dark = tone === "oscuro";
   return (
-    <div
-      data-reveal="pop"
+    <Reveal variant="pop"
       className={`relative isolate overflow-hidden rounded-[28px] px-6 py-12 text-center sm:px-12 ${dark ? "bg-profundo text-white" : "bg-white"} ${className}`}
     >
       <ContourField
@@ -154,7 +165,7 @@ export function EmptyState({
       <p className={`mt-4 font-display text-2xl font-semibold ${dark ? "text-white" : "text-texto"}`}>{title}</p>
       {children ? <div className={`mx-auto mt-2 max-w-md ${dark ? "text-white/85" : "text-secundario"}`}>{children}</div> : null}
       {action ? <div className="mt-6 flex flex-wrap justify-center gap-3">{action}</div> : null}
-    </div>
+    </Reveal>
   );
 }
 

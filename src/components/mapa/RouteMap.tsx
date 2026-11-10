@@ -3,6 +3,7 @@ import { STAGE_STATUS_LABELS } from "@/app/_lib/labels";
 import { IconoCheck, IconoEtapa, stageKind } from "@/components/iconos";
 import { toStroops } from "@/lib/amount";
 import type { RouteStage } from "@/modules/catalog";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 /**
  * La ruta del tratamiento como en un mapa: un punto por etapa, unidos por un sendero punteado. El tramo ya recorrido
@@ -49,7 +50,7 @@ export function RouteMap({
   const lineTop = big ? "top-[4px]" : "top-[-2px]";
 
   return (
-    <div data-reveal="sube" className={`relative ${className}`}>
+    <Reveal variant="sube" className={`relative ${className}`}>
       <svg
         viewBox="0 0 1000 40"
         preserveAspectRatio="none"
@@ -173,6 +174,6 @@ export function RouteMap({
           );
         })}
       </ol>
-    </div>
+    </Reveal>
   );
 }

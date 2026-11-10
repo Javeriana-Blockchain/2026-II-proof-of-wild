@@ -4,6 +4,7 @@ import { formatAmount } from "@/app/_lib/format";
 import { RouteMap } from "@/components/mapa/RouteMap";
 import { buttonClass, Chip, ProgressBar } from "@/components/ui";
 import type { PublicCaseSummary } from "@/modules/catalog";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 /**
  * Hoja de ruta de un caso (en la página principal y en el perfil de la ONG): la foto grande, el animal, su historia
@@ -12,9 +13,7 @@ import type { PublicCaseSummary } from "@/modules/catalog";
 export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: number }) {
   const name = item.commonName ?? "Especie reservada";
   return (
-    <article
-      data-reveal="capa"
-      style={{ ["--d" as string]: delay }}
+    <Reveal as="article" variant="capa" delay={delay}
       className="group/caso grid overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_-30px_rgb(31_42_34/0.55)] ring-1 ring-arena/60 transition-[box-shadow,transform] duration-300 ease-(--ease-out-expo) hover:-translate-y-1 hover:shadow-[0_26px_50px_-30px_rgb(31_42_34/0.65)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
     >
       <Link
@@ -86,7 +85,7 @@ export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: 
           )}
         </div>
       </div>
-    </article>
+    </Reveal>
   );
 }
 
@@ -94,9 +93,7 @@ export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: 
 export function RecoveredCard({ item, delay = 0 }: { item: PublicCaseSummary; delay?: number }) {
   const name = item.commonName ?? "Especie reservada";
   return (
-    <article
-      data-reveal="pop"
-      style={{ ["--d" as string]: delay }}
+    <Reveal as="article" variant="pop" delay={delay}
       className="group/rec relative overflow-hidden rounded-[24px] bg-white ring-1 ring-arena/60 transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:shadow-[0_20px_40px_-28px_rgb(31_42_34/0.6)]"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-salvia">
@@ -126,6 +123,6 @@ export function RecoveredCard({ item, delay = 0 }: { item: PublicCaseSummary; de
           Ver su historia
         </Link>
       </div>
-    </article>
+    </Reveal>
   );
 }

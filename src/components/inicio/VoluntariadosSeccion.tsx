@@ -5,6 +5,7 @@ import { IconoCamara, IconoCheck } from "@/components/iconos";
 import { ContourField } from "@/components/mapa/ContourField";
 import { buttonClass, EmptyState, ProgressBar } from "@/components/ui";
 import type { PublicVolunteering } from "@/platform/db/repositories/volunteering";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 const REGLAS = [
   ["Sin contacto", "con los animales"],
@@ -27,34 +28,32 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
       <div className="mx-auto max-w-7xl space-y-12 px-4 py-20 sm:px-8">
         <header className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="max-w-2xl">
-            <h2 id="titulo-voluntariados" data-reveal="sube" className="text-5xl sm:text-6xl">
+            <Reveal as="h2" variant="sube" id="titulo-voluntariados" className="text-5xl sm:text-6xl">
               Voluntariados
-            </h2>
-            <p data-reveal="sube" style={{ ["--d" as string]: 1 }} className="mt-4 text-xl text-white/90">
+            </Reveal>
+            <Reveal as="p" variant="sube" delay={1} className="mt-4 text-xl text-white/90">
               Pasa un día en una de las ONG de la página y conoce de cerca cómo trabajan. Ayudas con el refugio, no con los
               animales.
-            </p>
+            </Reveal>
           </div>
           <ul className="flex flex-wrap gap-3">
             {REGLAS.map(([fuerte, resto], i) => (
-              <li
+              <Reveal as="li" variant="pop" delay={1 + i}
                 key={fuerte}
-                data-reveal="pop"
-                style={{ ["--d" as string]: 1 + i }}
                 className="rounded-2xl border border-white/25 bg-profundo px-5 py-3"
               >
                 <strong className="block">{fuerte}</strong>
                 <span className="text-white/80">{resto}</span>
-              </li>
+              </Reveal>
             ))}
           </ul>
         </header>
 
         <div className="space-y-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 data-reveal="sube" className="text-4xl">
+            <Reveal as="h3" variant="sube" className="text-4xl">
               Próximas jornadas
-            </h3>
+            </Reveal>
             <p className="text-white/80">Las tareas se hacen en zonas sin animales, por su bienestar.</p>
           </div>
 
@@ -69,10 +68,8 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
                 const date =
                   new Date(`${v.date}T00:00:00Z`).getUTCFullYear() > thisYear ? formatDate(v.date) : formatDayMonth(v.date);
                 return (
-                  <article
+                  <Reveal as="article" variant="pop" delay={i}
                     key={v.id}
-                    data-reveal="pop"
-                    style={{ ["--d" as string]: i }}
                     className="group/jornada grid overflow-hidden rounded-[28px] bg-white text-texto transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:shadow-[0_26px_50px_-30px_rgb(0_0_0/0.7)] sm:grid-cols-[2fr_3fr]"
                   >
                     <div className="relative min-h-56 overflow-hidden bg-salvia">
@@ -128,16 +125,15 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
                         </Link>
                       </div>
                     </div>
-                  </article>
+                  </Reveal>
                 );
               })}
             </div>
           )}
         </div>
 
-        <section
+        <Reveal as="section" variant="capa"
           aria-labelledby="como-voluntariado"
-          data-reveal="capa"
           className="grid items-center gap-6 rounded-[28px] bg-arena p-7 text-texto lg:grid-cols-[1fr_3fr]"
         >
           <h3 id="como-voluntariado" className="text-3xl">
@@ -156,7 +152,7 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
               </li>
             ))}
           </ol>
-        </section>
+        </Reveal>
       </div>
     </section>
   );

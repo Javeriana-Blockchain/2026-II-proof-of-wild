@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ComponentType } from "react";
 import { IconoCorazon, IconoEscudo, IconoHuella, IconoMas, IconoPersonas } from "@/components/iconos";
 import { buttonClass, type ButtonVariant } from "@/components/ui";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 const PASOS = [
   { icono: IconoHuella, titulo: "Elige un caso", texto: "Conoce su historia y lo que necesita su tratamiento." },
@@ -85,12 +86,12 @@ export function ComoFunciona() {
   return (
     <section id="como-funciona" aria-labelledby="titulo-como" className="mx-auto max-w-7xl space-y-16 px-4 py-20 sm:px-8">
       <header className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-end">
-        <h2 id="titulo-como" data-reveal="sube" className="text-5xl sm:text-6xl">
+        <Reveal as="h2" variant="sube" id="titulo-como" className="text-5xl sm:text-6xl">
           ¿Cómo funciona?
-        </h2>
-        <p data-reveal="sube" style={{ ["--d" as string]: 1 }} className="max-w-lg text-xl text-secundario lg:justify-self-end">
+        </Reveal>
+        <Reveal as="p" variant="sube" delay={1} className="max-w-lg text-xl text-secundario lg:justify-self-end">
           Tres caminos para ser parte de la recuperación de fauna silvestre rescatada.
-        </p>
+        </Reveal>
       </header>
 
       {/* Los tres pasos del donante, unidos por el sendero. */}
@@ -113,7 +114,7 @@ export function ComoFunciona() {
           />
         </svg>
         {PASOS.map(({ icono: Icono, titulo, texto }, i) => (
-          <li key={titulo} data-reveal="pop" style={{ ["--d" as string]: i }} className="relative flex flex-col items-start md:items-center md:text-center">
+          <Reveal as="li" variant="pop" delay={i} key={titulo} className="relative flex flex-col items-start md:items-center md:text-center">
             <span className="relative flex h-20 w-20 items-center justify-center rounded-full bg-white text-bosque ring-4 ring-crema transition-transform duration-300 ease-(--ease-spring) hover:scale-110">
               <Icono className="h-8 w-8" />
               <span className="cifras absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-bosque text-sm font-bold text-white">
@@ -122,17 +123,15 @@ export function ComoFunciona() {
             </span>
             <h3 className="mt-5 text-3xl">{titulo}</h3>
             <p className="mt-2 max-w-xs text-lg text-secundario">{texto}</p>
-          </li>
+          </Reveal>
         ))}
       </ol>
 
       {/* Tres caminos: cada uno es un sendero con su placa de inicio y su salida. */}
       <div className="space-y-4">
         {CAMINOS.map(({ titulo, icono: Icono, placa, pasos, accion }, i) => (
-          <section
+          <Reveal as="section" variant="capa" delay={i}
             key={titulo}
-            data-reveal="capa"
-            style={{ ["--d" as string]: i }}
             aria-label={titulo}
             className="group/camino grid overflow-hidden rounded-[28px] bg-white ring-1 ring-arena/60 transition-shadow duration-300 hover:shadow-[0_22px_44px_-32px_rgb(31_42_34/0.6)] lg:grid-cols-[17rem_minmax(0,1fr)_auto]"
           >
@@ -160,17 +159,17 @@ export function ComoFunciona() {
                 {accion.texto}
               </Link>
             </div>
-          </section>
+          </Reveal>
         ))}
       </div>
 
       <section aria-labelledby="preguntas" className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <h3 id="preguntas" data-reveal="sube" className="text-4xl">
+        <Reveal as="h3" variant="sube" id="preguntas" className="text-4xl">
           Preguntas frecuentes
-        </h3>
+        </Reveal>
         <div className="divide-y divide-arena/70 border-y border-arena/70">
           {PREGUNTAS.map((p, i) => (
-            <details key={p.id} id={p.id} data-reveal="sube" style={{ ["--d" as string]: i }} className="group/p scroll-mt-28">
+            <Reveal as="details" variant="sube" delay={i} key={p.id} id={p.id} className="group/p scroll-mt-28">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-lg font-semibold transition-colors hover:text-bosque [&::-webkit-details-marker]:hidden">
                 {p.pregunta}
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-bosque/40 text-bosque transition-transform duration-300 ease-(--ease-spring) group-open/p:rotate-45 group-hover/p:border-bosque">
@@ -178,7 +177,7 @@ export function ComoFunciona() {
                 </span>
               </summary>
               <p className="max-w-prose pb-6 text-lg text-secundario">{p.respuesta}</p>
-            </details>
+            </Reveal>
           ))}
         </div>
       </section>
