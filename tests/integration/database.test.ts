@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
@@ -18,6 +19,7 @@ import {
 } from "@/platform/auth";
 import type { Db } from "@/platform/db/client";
 import { DbCatalogReader } from "@/platform/db/repositories/catalog";
+import { DbContributionStore } from "@/platform/db/repositories/contributions";
 import * as schema from "@/platform/db/schema";
 import { resetDemo, seedDemo } from "@/platform/db/seed-demo";
 import { sha256Hex } from "@/lib/hash";
@@ -143,6 +145,25 @@ describe.skipIf(!url)("integración con PostgreSQL", () => {
       expect(stored.sha256).toBe(await sha256Hex(saved));
       await expect(storage.read("00000000-0000-0000-0000-000000000000.pdf")).rejects.toThrow(RangeError);
       await expect(storage.read("../secreto.pdf")).rejects.toThrow(RangeError);
+    });
+  });
+
+  describe("copias de los aportes (ADR-12)", () => {
+    it("un aporte rechazado por la red se puede reenviar con la misma transacción y confirmarse", async () => {
+      const store = new DbContributionStore(db);
+      const [pow1] = await db.select({ id: schema.cases.id }).from(schema.cases).where(eq(schema.cases.code, "POW_001"));
+      const txHash = "e".repeat(64);
+      const input = { caseId: pow1!.id, donorAccount: "G" + "E".repeat(55), amount: "5", txHash };
+      await store.saveSubmitted(input);
+      await store.markFailed(txHash, "La firma no corresponde a la cuenta esperada.");
+      expect(await store.find(txHash)).toMatchObject({ status: "fallida" });
+
+      await store.saveSubmitted(input);
+      expect(await store.find(txHash)).toMatchObject({ status: "enviada", lastError: null });
+      await store.markConfirmed(txHash, { confirmedAt: new Date("2026-11-10T12:00:00Z"), allocations: [] });
+      await store.saveSubmitted(input);
+      expect(await store.find(txHash)).toMatchObject({ status: "confirmada" });
+      await db.delete(schema.contributions).where(eq(schema.contributions.txHash, txHash));
     });
   });
 

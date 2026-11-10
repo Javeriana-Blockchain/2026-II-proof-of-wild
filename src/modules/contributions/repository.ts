@@ -23,7 +23,11 @@ export interface StoredContribution {
 
 export interface ContributionStore {
   caseForContribution(caseCode: string): Promise<ContributionCase | null>;
-  /** Guarda el aporte al enviarlo (estado «enviada»). Idempotente por hash. */
+  /**
+   * Guarda el aporte al enviarlo (estado «enviada»). Idempotente por hash. Si ese mismo hash quedó «fallida»
+   * porque la red lo rechazó (por ejemplo, firmado con otra cuenta), vuelve a «enviada»: es la misma transacción
+   * y puede entrar ahora; si ya se había gastado su número de secuencia, la red la vuelve a rechazar.
+   */
   saveSubmitted(input: { caseId: string; donorAccount: string; amount: string; txHash: string }): Promise<void>;
   find(txHash: string): Promise<StoredContribution | null>;
   /** «enviada» → «confirmada», con la fecha del ledger y el reparto por etapa que emitió el contrato. */

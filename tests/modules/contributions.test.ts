@@ -29,9 +29,9 @@ class MemoryStore implements ContributionStore {
     return code === this.caseInfo.code ? this.caseInfo : null;
   }
   async saveSubmitted(input: { caseId: string; donorAccount: string; amount: string; txHash: string }) {
-    if (!this.rows.has(input.txHash)) {
-      this.rows.set(input.txHash, { ...input, caseCode: "POW_001", status: "enviada", lastError: null });
-    }
+    const row = this.rows.get(input.txHash);
+    if (!row) this.rows.set(input.txHash, { ...input, caseCode: "POW_001", status: "enviada", lastError: null });
+    else if (row.status === "fallida") Object.assign(row, { status: "enviada", lastError: null });
   }
   async find(txHash: string) {
     return this.rows.get(txHash) ?? null;
@@ -170,6 +170,15 @@ describe("enviar y confirmar (RN-03, ADR-12)", () => {
     ledger.submitError = new TransactionMismatchError("La firma no corresponde a la cuenta esperada.");
     await expect(service.submit("XDR-FIRMADO")).rejects.toThrow(ContributionRejectedError);
     expect(store.rows.get(HASH)).toMatchObject({ status: "fallida", lastError: "La firma no corresponde a la cuenta esperada." });
+  });
+
+  it("la misma transacción, bien firmada después de un rechazo, se vuelve a enviar y se confirma", async () => {
+    ledger.submitError = new TransactionMismatchError("La firma no corresponde a la cuenta esperada.");
+    await expect(service.submit("XDR-FIRMADO-CON-OTRA")).rejects.toThrow(ContributionRejectedError);
+    ledger.submitError = null;
+    const result = await service.submit("XDR-FIRMADO");
+    expect(result.status).toBe("confirmada");
+    expect(store.rows.get(HASH)).toMatchObject({ status: "confirmada", lastError: null });
   });
 
   it("no confirma si lo que quedó en la red no coincide con lo guardado", async () => {

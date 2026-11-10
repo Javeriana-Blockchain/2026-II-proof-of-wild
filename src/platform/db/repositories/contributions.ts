@@ -40,7 +40,14 @@ export class DbContributionStore implements ContributionStore {
   }
 
   async saveSubmitted(input: { caseId: string; donorAccount: string; amount: string; txHash: string }) {
-    await this.db.insert(contributions).values({ ...input, status: "enviada" }).onConflictDoNothing();
+    await this.db
+      .insert(contributions)
+      .values({ ...input, status: "enviada" })
+      .onConflictDoUpdate({
+        target: contributions.txHash,
+        set: { status: "enviada", lastError: null },
+        setWhere: eq(contributions.status, "fallida"),
+      });
   }
 
   async find(txHash: string): Promise<StoredContribution | null> {
