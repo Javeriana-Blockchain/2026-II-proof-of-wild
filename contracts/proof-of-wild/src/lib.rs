@@ -1,82 +1,62 @@
 #![no_std]
 
+//! Contrato Proof of Wild (MVP). Amplía el contrato RaizSilvestre de la semana 3 con lo que pide el brief:
+//! cada caso tiene etapas con su costo; `aportar` reparte el aporte entre las etapas en orden y rechaza lo
+//! que supere la meta; `registrar_gasto` le paga al proveedor desde los fondos cubiertos y sin gastar de una
+//! etapa y guarda el hash de la factura; `registrar_hito` deja en la red el hash de la evidencia.
+//! La firma doble (ONG y validador) para los gastos queda para la etapa 2.
+
 mod types;
 
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{
-    contract, contractevent, contractimpl, token, Address, BytesN, Env, Symbol, Vec,
-};
-use types::{Case, Config, DataKey, Error, Milestone, Proposal, ProposalStatus};
+use soroban_sdk::{contract, contractevent, contractimpl, token, Address, BytesN, Env, Symbol, Vec};
+pub use types::{Caso, Config, DataKey, Error, Etapa, RegistroHito, ResumenCaso};
 
 const DAY_LEDGERS: u32 = 17_280;
 const TTL_THRESHOLD: u32 = 30 * DAY_LEDGERS;
 const TTL_EXTEND_TO: u32 = 90 * DAY_LEDGERS;
 
+/// Evento `caso_creado`.
 #[contractevent]
-pub struct OrgAuthorized {
+pub struct CasoCreado {
     #[topic]
-    pub org: Address,
+    pub caso: Symbol,
+    pub ong: Address,
+    pub costos_etapas: Vec<i128>,
 }
 
+/// Evento `aporte`: `reparto` trae lo que el aporte asignó a cada etapa, en orden (una posición por etapa).
 #[contractevent]
-pub struct CaseRegistered {
+pub struct Aporte {
     #[topic]
-    pub case_id: u32,
-    pub org: Address,
-    pub goal: i128,
-    pub meta_hash: BytesN<32>,
+    pub caso: Symbol,
+    #[topic]
+    pub donante: Address,
+    pub monto: i128,
+    pub reparto: Vec<i128>,
 }
 
+/// Evento `gasto`: el pago al proveedor desde una etapa (empezando en 1) con el hash de la factura.
 #[contractevent]
-pub struct Donation {
+pub struct Gasto {
     #[topic]
-    pub case_id: u32,
-    pub donor: Address,
-    pub amount: i128,
+    pub caso: Symbol,
+    pub etapa: u32,
+    pub proveedor: Address,
+    pub monto: i128,
+    pub hash_factura: BytesN<32>,
 }
 
+/// Evento `hito`: el hash de la foto o del documento de un avance del tratamiento.
 #[contractevent]
-pub struct DisbursementProposed {
+pub struct Hito {
     #[topic]
-    pub case_id: u32,
-    pub proposal_id: u32,
-    pub amount: i128,
-    pub evidence_hash: BytesN<32>,
-}
-
-#[contractevent]
-pub struct DisbursementApproved {
-    #[topic]
-    pub proposal_id: u32,
-    pub approver: Address,
-    pub approvals: u32,
-}
-
-#[contractevent]
-pub struct DisbursementExecuted {
-    #[topic]
-    pub case_id: u32,
-    pub proposal_id: u32,
-    pub amount: i128,
-}
-
-#[contractevent]
-pub struct MilestoneRecorded {
-    #[topic]
-    pub case_id: u32,
-    pub index: u32,
-    pub kind: Symbol,
-    pub evidence_hash: BytesN<32>,
-}
-
-#[contractevent]
-pub struct MilestoneValidated {
-    #[topic]
-    pub case_id: u32,
-    pub index: u32,
-    pub validator: Address,
+    pub caso: Symbol,
+    pub etapa: u32,
+    pub indice: u32,
+    pub hash_evidencia: BytesN<32>,
 }
 
 #[contract]
@@ -84,314 +64,168 @@ pub struct ProofOfWild;
 
 #[contractimpl]
 impl ProofOfWild {
-    /// One-time setup. `admin` authorizes rescue organizations; `approvers`
-    /// co-sign disbursements (`threshold` approvals required) and validate
-    /// milestones. `token` is the SEP-41 asset used for donations.
-    pub fn initialize(
-        env: Env,
-        admin: Address,
-        token: Address,
-        approvers: Vec<Address>,
-        threshold: u32,
-    ) -> Result<(), Error> {
+    /// Configuración inicial, una sola vez: la cuenta administradora y el contrato del USDC de prueba.
+    pub fn inicializar(env: Env, admin: Address, token: Address) -> Result<(), Error> {
         if env.storage().instance().has(&DataKey::Config) {
-            return Err(Error::AlreadyInitialized);
-        }
-        if threshold == 0 || threshold > approvers.len() {
-            return Err(Error::InvalidThreshold);
+            return Err(Error::YaInicializado);
         }
         admin.require_auth();
-        env.storage().instance().set(
-            &DataKey::Config,
-            &Config {
-                admin,
-                token,
-                approvers,
-                threshold,
-            },
-        );
-        env.storage().instance().set(&DataKey::CaseCount, &0u32);
-        env.storage().instance().set(&DataKey::ProposalCount, &0u32);
+        env.storage().instance().set(&DataKey::Config, &Config { admin, token });
         bump_instance(&env);
         Ok(())
     }
 
-    /// Admin allow-lists a rescue organization that may open cases.
-    pub fn authorize_org(env: Env, org: Address) -> Result<(), Error> {
+    /// El administrador registra un caso, la cuenta de su ONG y el costo de cada etapa, en orden.
+    pub fn crear_caso(env: Env, caso: Symbol, ong: Address, costos_etapas: Vec<i128>) -> Result<(), Error> {
         let cfg = config(&env)?;
         cfg.admin.require_auth();
-        let key = DataKey::Org(org.clone());
-        env.storage().persistent().set(&key, &true);
-        bump_persistent(&env, &key);
+        if env.storage().persistent().has(&DataKey::Caso(caso.clone())) {
+            return Err(Error::CasoYaExiste);
+        }
+        if costos_etapas.is_empty() {
+            return Err(Error::EtapasInvalidas);
+        }
+        let mut etapas = Vec::new(&env);
+        for costo in costos_etapas.iter() {
+            if costo <= 0 {
+                return Err(Error::EtapasInvalidas);
+            }
+            etapas.push_back(Etapa { costo, cubierto: 0, gastado: 0 });
+        }
+        guardar_caso(&env, &caso, &Caso { ong: ong.clone(), etapas, hitos: 0 });
         bump_instance(&env);
-        OrgAuthorized { org }.publish(&env);
+        CasoCreado { caso, ong, costos_etapas }.publish(&env);
         Ok(())
     }
 
-    /// An authorized organization opens a case. `meta_hash` commits to the
-    /// off-chain case file (budget breakdown, initial assessment); sensitive
-    /// details stay off-chain.
-    pub fn register_case(
-        env: Env,
-        org: Address,
-        goal: i128,
-        meta_hash: BytesN<32>,
-    ) -> Result<u32, Error> {
-        org.require_auth();
-        config(&env)?;
-        if goal <= 0 {
-            return Err(Error::InvalidAmount);
-        }
-        let org_key = DataKey::Org(org.clone());
-        if !env.storage().persistent().has(&org_key) {
-            return Err(Error::OrgNotAuthorized);
-        }
-        bump_persistent(&env, &org_key);
-
-        let id: u32 = env.storage().instance().get(&DataKey::CaseCount).unwrap_or(0) + 1;
-        env.storage().instance().set(&DataKey::CaseCount, &id);
-        let case = Case {
-            org: org.clone(),
-            goal,
-            raised: 0,
-            disbursed: 0,
-            meta_hash: meta_hash.clone(),
-            milestone_count: 0,
-        };
-        save_case(&env, id, &case);
-        bump_instance(&env);
-        CaseRegistered {
-            case_id: id,
-            org,
-            goal,
-            meta_hash,
-        }
-        .publish(&env);
-        Ok(id)
-    }
-
-    /// Sponsor funds a case. The tokens move into the contract and are
-    /// tracked per case.
-    pub fn donate(env: Env, donor: Address, case_id: u32, amount: i128) -> Result<(), Error> {
-        donor.require_auth();
-        if amount <= 0 {
-            return Err(Error::InvalidAmount);
+    /// El donante transfiere USDC al contrato. El aporte llena la primera etapa que falte por cubrir y sigue
+    /// con la siguiente. Se rechaza si supera lo que falta para la meta. Devuelve el reparto por etapa.
+    pub fn aportar(env: Env, donante: Address, caso: Symbol, monto: i128) -> Result<Vec<i128>, Error> {
+        donante.require_auth();
+        if monto <= 0 {
+            return Err(Error::MontoInvalido);
         }
         let cfg = config(&env)?;
-        let mut case = load_case(&env, case_id)?;
-        token::Client::new(&env, &cfg.token).transfer(
-            &donor,
-            &env.current_contract_address(),
-            &amount,
-        );
-        case.raised += amount;
-        save_case(&env, case_id, &case);
-        bump_instance(&env);
-        Donation {
-            case_id,
-            donor,
-            amount,
+        let mut datos = cargar_caso(&env, &caso)?;
+        let faltante: i128 = datos.etapas.iter().map(|e| e.costo - e.cubierto).sum();
+        if monto > faltante {
+            return Err(Error::SuperaLaMeta);
         }
-        .publish(&env);
-        Ok(())
+
+        token::Client::new(&env, &cfg.token).transfer(&donante, &env.current_contract_address(), &monto);
+
+        let mut restante = monto;
+        let mut reparto = Vec::new(&env);
+        let mut etapas = Vec::new(&env);
+        for mut etapa in datos.etapas.iter() {
+            let falta = etapa.costo - etapa.cubierto;
+            let toma = if restante < falta { restante } else { falta };
+            etapa.cubierto += toma;
+            restante -= toma;
+            reparto.push_back(toma);
+            etapas.push_back(etapa);
+        }
+        datos.etapas = etapas;
+        guardar_caso(&env, &caso, &datos);
+        bump_instance(&env);
+        Aporte { caso, donante, monto, reparto: reparto.clone() }.publish(&env);
+        Ok(reparto)
     }
 
-    /// The organization reports an expense it wants paid out. `evidence_hash`
-    /// is the hash of the invoice/receipt stored off-chain. Funds stay in the
-    /// contract until enough approvers sign.
-    pub fn propose_disbursement(
+    /// La ONG del caso le paga a un proveedor desde una etapa (empezando en 1) y guarda el hash de la
+    /// factura. La etapa no puede gastar más de lo que tiene cubierto y sin gastar: así el dinero de cada
+    /// etapa solo se usa en esa etapa.
+    pub fn registrar_gasto(
         env: Env,
-        case_id: u32,
-        amount: i128,
-        evidence_hash: BytesN<32>,
-    ) -> Result<u32, Error> {
-        if amount <= 0 {
-            return Err(Error::InvalidAmount);
-        }
-        let case = load_case(&env, case_id)?;
-        case.org.require_auth();
-        if amount > case.raised - case.disbursed {
-            return Err(Error::InsufficientFunds);
-        }
-        let id: u32 = env
-            .storage()
-            .instance()
-            .get(&DataKey::ProposalCount)
-            .unwrap_or(0)
-            + 1;
-        env.storage().instance().set(&DataKey::ProposalCount, &id);
-        let proposal = Proposal {
-            case_id,
-            amount,
-            evidence_hash: evidence_hash.clone(),
-            approvals: Vec::new(&env),
-            status: ProposalStatus::Pending,
-        };
-        save_proposal(&env, id, &proposal);
-        bump_instance(&env);
-        DisbursementProposed {
-            case_id,
-            proposal_id: id,
-            amount,
-            evidence_hash,
-        }
-        .publish(&env);
-        Ok(id)
-    }
-
-    /// An approver co-signs a proposal. When `threshold` distinct approvers
-    /// have signed, the payment to the organization is executed.
-    pub fn approve_disbursement(
-        env: Env,
-        approver: Address,
-        proposal_id: u32,
+        ong: Address,
+        caso: Symbol,
+        etapa: u32,
+        proveedor: Address,
+        monto: i128,
+        hash_factura: BytesN<32>,
     ) -> Result<(), Error> {
-        approver.require_auth();
+        ong.require_auth();
+        if monto <= 0 {
+            return Err(Error::MontoInvalido);
+        }
         let cfg = config(&env)?;
-        if !cfg.approvers.contains(&approver) {
-            return Err(Error::NotApprover);
+        let mut datos = cargar_caso(&env, &caso)?;
+        if datos.ong != ong {
+            return Err(Error::NoEsLaOngDelCaso);
         }
-        let mut proposal = load_proposal(&env, proposal_id)?;
-        if proposal.status != ProposalStatus::Pending {
-            return Err(Error::ProposalClosed);
+        let i = indice_etapa(&datos, etapa)?;
+        let mut e = datos.etapas.get_unchecked(i);
+        if monto > e.cubierto - e.gastado {
+            return Err(Error::FondosInsuficientes);
         }
-        if proposal.approvals.contains(&approver) {
-            return Err(Error::AlreadyApproved);
-        }
-        proposal.approvals.push_back(approver.clone());
-        let count = proposal.approvals.len();
-        DisbursementApproved {
-            proposal_id,
-            approver,
-            approvals: count,
-        }
-        .publish(&env);
+        e.gastado += monto;
+        datos.etapas.set(i, e);
+        guardar_caso(&env, &caso, &datos);
 
-        if count >= cfg.threshold {
-            let mut case = load_case(&env, proposal.case_id)?;
-            if proposal.amount > case.raised - case.disbursed {
-                return Err(Error::InsufficientFunds);
-            }
-            case.disbursed += proposal.amount;
-            proposal.status = ProposalStatus::Executed;
-            token::Client::new(&env, &cfg.token).transfer(
-                &env.current_contract_address(),
-                &case.org,
-                &proposal.amount,
-            );
-            save_case(&env, proposal.case_id, &case);
-            DisbursementExecuted {
-                case_id: proposal.case_id,
-                proposal_id,
-                amount: proposal.amount,
-            }
-            .publish(&env);
-        }
-        save_proposal(&env, proposal_id, &proposal);
+        token::Client::new(&env, &cfg.token).transfer(&env.current_contract_address(), &proveedor, &monto);
         bump_instance(&env);
+        Gasto { caso, etapa, proveedor, monto, hash_factura }.publish(&env);
         Ok(())
     }
 
-    /// The organization records a recovery milestone (e.g. `vet_eval`,
-    /// `rehab_start`, `release`) with the hash of its off-chain evidence.
-    pub fn record_milestone(
+    /// La ONG del caso deja en la red el hash de la foto o del documento de un hito. Devuelve su índice.
+    pub fn registrar_hito(
         env: Env,
-        case_id: u32,
-        kind: Symbol,
-        evidence_hash: BytesN<32>,
+        ong: Address,
+        caso: Symbol,
+        etapa: u32,
+        hash_evidencia: BytesN<32>,
     ) -> Result<u32, Error> {
-        let mut case = load_case(&env, case_id)?;
-        case.org.require_auth();
-        let index = case.milestone_count;
-        case.milestone_count += 1;
-        let key = DataKey::Milestone(case_id, index);
+        ong.require_auth();
+        let mut datos = cargar_caso(&env, &caso)?;
+        if datos.ong != ong {
+            return Err(Error::NoEsLaOngDelCaso);
+        }
+        indice_etapa(&datos, etapa)?;
+
+        let indice = datos.hitos;
+        datos.hitos += 1;
+        let key = DataKey::Hito(caso.clone(), indice);
         env.storage().persistent().set(
             &key,
-            &Milestone {
-                kind: kind.clone(),
-                evidence_hash: evidence_hash.clone(),
-                validators: Vec::new(&env),
-            },
+            &RegistroHito { etapa, hash_evidencia: hash_evidencia.clone() },
         );
         bump_persistent(&env, &key);
-        save_case(&env, case_id, &case);
+        guardar_caso(&env, &caso, &datos);
         bump_instance(&env);
-        MilestoneRecorded {
-            case_id,
-            index,
-            kind,
-            evidence_hash,
+        Hito { caso, etapa, indice, hash_evidencia }.publish(&env);
+        Ok(indice)
+    }
+
+    /// Cualquiera, sin firma: la ONG, el costo, lo cubierto y lo gastado de cada etapa, y el saldo del caso.
+    pub fn consultar_caso(env: Env, caso: Symbol) -> Result<ResumenCaso, Error> {
+        let datos = cargar_caso(&env, &caso)?;
+        let (mut meta, mut recaudado, mut gastado) = (0i128, 0i128, 0i128);
+        for e in datos.etapas.iter() {
+            meta += e.costo;
+            recaudado += e.cubierto;
+            gastado += e.gastado;
         }
-        .publish(&env);
-        Ok(index)
+        Ok(ResumenCaso {
+            ong: datos.ong,
+            etapas: datos.etapas,
+            meta,
+            recaudado,
+            gastado,
+            saldo: recaudado - gastado,
+            hitos: datos.hitos,
+        })
     }
 
-    /// An approver (e.g. a veterinary professional) attests to a milestone.
-    /// Milestones with no validators are "reported by the organization" only.
-    pub fn validate_milestone(
-        env: Env,
-        validator: Address,
-        case_id: u32,
-        index: u32,
-    ) -> Result<(), Error> {
-        validator.require_auth();
-        let cfg = config(&env)?;
-        if !cfg.approvers.contains(&validator) {
-            return Err(Error::NotApprover);
-        }
-        let key = DataKey::Milestone(case_id, index);
-        let mut milestone: Milestone = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .ok_or(Error::MilestoneNotFound)?;
-        if milestone.validators.contains(&validator) {
-            return Err(Error::AlreadyApproved);
-        }
-        milestone.validators.push_back(validator.clone());
-        env.storage().persistent().set(&key, &milestone);
-        bump_persistent(&env, &key);
-        bump_instance(&env);
-        MilestoneValidated {
-            case_id,
-            index,
-            validator,
-        }
-        .publish(&env);
-        Ok(())
-    }
-
-    pub fn get_config(env: Env) -> Result<Config, Error> {
-        config(&env)
-    }
-
-    pub fn is_org_authorized(env: Env, org: Address) -> bool {
-        env.storage().persistent().has(&DataKey::Org(org))
-    }
-
-    pub fn case_count(env: Env) -> u32 {
-        env.storage().instance().get(&DataKey::CaseCount).unwrap_or(0)
-    }
-
-    pub fn get_case(env: Env, case_id: u32) -> Result<Case, Error> {
-        load_case(&env, case_id)
-    }
-
-    pub fn get_proposal(env: Env, proposal_id: u32) -> Result<Proposal, Error> {
-        load_proposal(&env, proposal_id)
-    }
-
-    pub fn get_milestone(env: Env, case_id: u32, index: u32) -> Result<Milestone, Error> {
+    pub fn consultar_hito(env: Env, caso: Symbol, indice: u32) -> Result<RegistroHito, Error> {
         env.storage()
             .persistent()
-            .get(&DataKey::Milestone(case_id, index))
-            .ok_or(Error::MilestoneNotFound)
+            .get(&DataKey::Hito(caso, indice))
+            .ok_or(Error::HitoNoExiste)
     }
 
-    /// Funds held by the contract for a case (raised minus disbursed).
-    pub fn case_balance(env: Env, case_id: u32) -> Result<i128, Error> {
-        let case = load_case(&env, case_id)?;
-        Ok(case.raised - case.disbursed)
+    pub fn consultar_config(env: Env) -> Result<Config, Error> {
+        config(&env)
     }
 }
 
@@ -399,43 +233,32 @@ fn config(env: &Env) -> Result<Config, Error> {
     env.storage()
         .instance()
         .get(&DataKey::Config)
-        .ok_or(Error::NotInitialized)
+        .ok_or(Error::NoInicializado)
 }
 
-fn load_case(env: &Env, id: u32) -> Result<Case, Error> {
-    let key = DataKey::Case(id);
-    let case = env.storage().persistent().get(&key).ok_or(Error::CaseNotFound)?;
+/// Convierte la etapa (empezando en 1) en el índice del vector.
+fn indice_etapa(datos: &Caso, etapa: u32) -> Result<u32, Error> {
+    if etapa == 0 || etapa > datos.etapas.len() {
+        return Err(Error::EtapaNoExiste);
+    }
+    Ok(etapa - 1)
+}
+
+fn cargar_caso(env: &Env, caso: &Symbol) -> Result<Caso, Error> {
+    let key = DataKey::Caso(caso.clone());
+    let datos = env.storage().persistent().get(&key).ok_or(Error::CasoNoExiste)?;
     bump_persistent(env, &key);
-    Ok(case)
+    Ok(datos)
 }
 
-fn save_case(env: &Env, id: u32, case: &Case) {
-    let key = DataKey::Case(id);
-    env.storage().persistent().set(&key, case);
-    bump_persistent(env, &key);
-}
-
-fn load_proposal(env: &Env, id: u32) -> Result<Proposal, Error> {
-    let key = DataKey::Proposal(id);
-    let p = env
-        .storage()
-        .persistent()
-        .get(&key)
-        .ok_or(Error::ProposalNotFound)?;
-    bump_persistent(env, &key);
-    Ok(p)
-}
-
-fn save_proposal(env: &Env, id: u32, p: &Proposal) {
-    let key = DataKey::Proposal(id);
-    env.storage().persistent().set(&key, p);
+fn guardar_caso(env: &Env, caso: &Symbol, datos: &Caso) {
+    let key = DataKey::Caso(caso.clone());
+    env.storage().persistent().set(&key, datos);
     bump_persistent(env, &key);
 }
 
 fn bump_instance(env: &Env) {
-    env.storage()
-        .instance()
-        .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+    env.storage().instance().extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
 }
 
 fn bump_persistent(env: &Env, key: &DataKey) {
