@@ -23,3 +23,4 @@ npm-debug.log*
 
 # contrato Soroban (artefactos de cargo)
 contracts/*/target/
+.claude/launch.json
