@@ -32,6 +32,7 @@ export interface ProofOfWildMethods {
     hash_evidencia: Buffer;
   }): Promise<contract.AssembledTransaction<unknown>>;
   consultar_caso(args: { caso: string }): Promise<contract.AssembledTransaction<unknown>>;
+  consultar_hito(args: { caso: string; indice: number }): Promise<contract.AssembledTransaction<unknown>>;
 }
 
 export type ProofOfWildClient = contract.Client & ProofOfWildMethods;
