@@ -1,32 +1,40 @@
 # Proof of Wild
 
-Plataforma web donde una persona apadrina la recuperación de un animal silvestre rescatado y verifica, paso a paso, en qué se usó su aporte y qué avances logró. Los pagos y el hash de cada evidencia quedan en la red Stellar (testnet); los documentos y los datos personales quedan fuera de la red.
+Plataforma web donde una persona apadrina la recuperación de un animal silvestre rescatado y verifica, paso a paso, en qué se usó su aporte y qué avances logró. El aporte va a un contrato en Soroban (Stellar testnet) que lo reparte entre las etapas del tratamiento; cada gasto le paga directamente al proveedor y guarda el hash de la factura, que se publica en la página. Los documentos y los datos personales quedan fuera de la red.
 
-El MVP se presenta el 13 de noviembre de 2026. Contexto, requisitos y decisiones de diseño están en [`docs/arquitectura`](docs/arquitectura):
-
-- [Contexto y drivers](docs/arquitectura/contexto-y-drivers.md): alcance, actores, requisitos, reglas de negocio y escenarios de calidad.
-- [Arquitectura](docs/arquitectura/arquitectura.md): decisiones (ADR), vistas, trazabilidad y evaluación.
+El MVP se presenta el 13 de noviembre de 2026. Contexto, requisitos y decisiones de diseño están en [`docs/arquitectura`](docs/arquitectura).
 
 ## Tecnologías
 
-Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS 4, PostgreSQL 16 con Drizzle ORM, `@stellar/stellar-sdk`, `@stellar/freighter-api`, zod, sharp y Vitest.
+| Parte | Tecnología |
+|---|---|
+| Aplicación | Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS 4 |
+| Datos | PostgreSQL 16 con Drizzle ORM (migraciones versionadas) |
+| Contrato | Rust y `soroban-sdk` 27 en [`contracts/proof-of-wild`](contracts/proof-of-wild) |
+| Stellar | `@stellar/stellar-sdk` (RPC de Soroban y Horizon) |
+| Cuentas | SRP-6a con `secure-remote-password`: la base de datos nunca ve la contraseña |
+| Otros | zod, sharp (borra el EXIF de las fotos), Vitest |
 
 ## Requisitos
 
-- Node 22.12 o superior
-- Docker (para PostgreSQL local)
-- Extensión de billetera [Freighter](https://www.freighter.app) configurada en testnet
+- Node 22.12 o superior (con nvm: `nvm use 22`)
+- Docker, para PostgreSQL local
+- Rust 1.91.1 con el destino `wasm32v1-none`, para compilar el contrato. En Windows sin Visual Studio Build Tools sirve la cadena GNU: `rustup toolchain install 1.91.1-x86_64-pc-windows-gnu --target wasm32v1-none` y luego `cargo +1.91.1-x86_64-pc-windows-gnu …`
+- Una billetera de Stellar en testnet (por ejemplo, Freighter) para aportar desde la página
 
 ## Puesta en marcha
 
 ```bash
 npm install
-cp .env.example .env      # completa los valores
-npm run db:up             # PostgreSQL local en el puerto 55432
+cp .env.example .env      # completa SESSION_SECRET, CRON_SECRET y DEMO_PASSWORD
+npm run db:up             # PostgreSQL local (puerto POW_DB_PORT, por defecto 55432)
 npm run db:migrate        # crea las tablas
-npm run db:seed           # carga los 3 casos ficticios
+npm run contrato:build    # compila el WASM del contrato
+npm run red:preparar      # cuentas, USDC de prueba, contrato, casos y actividad en testnet
 npm run dev               # http://localhost:3000
 ```
+
+`red:preparar` deja la demo lista en unos minutos y se puede repetir cuando algo falle o después de un reinicio de testnet (el próximo anunciado es el 16 de diciembre de 2026). Crea y fondea con Friendbot las cuentas del administrador, el emisor del USDC, las 2 ONG, los 5 proveedores y los 8 donantes; emite el USDC de prueba y despliega su Stellar Asset Contract; despliega el contrato, crea los 5 casos y hace en la red los 13 aportes del documento de datos de prueba, en su orden, con los gastos (pago al proveedor y factura PDF de ejemplo) y los hitos. Reinicia la base de datos con esos datos y escribe `CONTRACT_ID`, `ASSET_ISSUER` y `ASSET_CONTRACT_ID` en `.env`. Las llaves de testnet quedan en `.data/cuentas-demo.json`, que git ignora.
 
 ## Scripts
 
@@ -35,64 +43,71 @@ npm run dev               # http://localhost:3000
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Compilación de producción |
 | `npm run typecheck` | Verificación de tipos |
-| `npm test` | Pruebas de reglas de dominio y adaptadores (sin red ni base de datos) |
-| `npm run test:integration` | Pruebas contra PostgreSQL real. **Vacían las tablas** de `TEST_DATABASE_URL`: usa una base desechable |
-| `npm run db:generate` | Genera una migración a partir del esquema |
+| `npm test` | Pruebas de dominio y adaptadores; con `TEST_DATABASE_URL`, también las de integración |
+| `npm run contrato:test` | Pruebas del contrato (`cargo test`) |
+| `npm run contrato:build` | WASM de release del contrato |
+| `npm run red:preparar` | Prepara toda la demo en testnet (ver arriba) |
 | `npm run db:migrate` | Aplica las migraciones |
-| `npm run db:seed` | Carga 1 centro ficticio y 3 casos (ingreso, rehabilitación y liberación) |
-| `npm run db:seed:activity` | Igual, con aportes, gastos e hitos de ejemplo para trabajar la interfaz |
+| `npm run db:seed` | Carga ONG, proveedores, casos con etapas, donantes y voluntariados (sin actividad en la red) |
+| `npm run db:seed:activity` | Igual, con aportes, gastos e hitos de ejemplo con **hashes inventados**: solo para trabajar la interfaz sin red |
 
-## Datos de demostración
+Las pruebas de integración **vacían** la base de `TEST_DATABASE_URL`: usa una base distinta de la de la demo (`proofofwild_test`, ver `.env.example`). Se niegan a correr si apunta a la misma de `DATABASE_URL`.
 
-`npm run db:seed` crea los casos `POW-001`, `POW-002` y `POW-003`, y tres usuarios de demo (centro, validador y administrador). Variables opcionales, todas en `.env`:
+## Contrato Proof of Wild
 
-| Variable | Para qué |
-|---|---|
-| `DEMO_PASSWORD` | Contraseña de los usuarios de demo. Si falta, se genera una y se muestra una sola vez |
-| `DEMO_CENTER_ACCOUNT` | Cuenta Stellar del centro. Debe estar fondeada y tener línea de confianza del activo de prueba; si falta, se genera una aleatoria que **no puede recibir aportes** |
-| `DEMO_CENTER_USER_ACCOUNT`, `DEMO_VALIDATOR_ACCOUNT` | Cuentas con las que el usuario del centro y el validador firman sus anclajes |
+Amplía el contrato `RaizSilvestre` de la semana 3 (que sigue en el historial) con lo que pide el brief:
 
-`db:seed:activity` usa hashes de transacción inventados que **no existen en la red Stellar**. Sirve para desarrollar la interfaz, no para la demostración: allí los aportes, gastos e hitos se registran con Freighter.
+| Función | Quién la llama | Qué hace |
+|---|---|---|
+| `inicializar(admin, token)` | Administrador, una vez | Guarda la cuenta administradora y el contrato del USDC de prueba |
+| `crear_caso(caso, ong, costos_etapas)` | Administrador | Registra el caso (`POW_001`, como Symbol), la cuenta de su ONG y el costo de cada etapa |
+| `aportar(donante, caso, monto)` | Donante | Transfiere el USDC al contrato y lo reparte en orden entre las etapas; rechaza lo que supere la meta. Evento `aporte` con el reparto |
+| `registrar_gasto(ong, caso, etapa, proveedor, monto, hash_factura)` | La ONG del caso | Le paga al proveedor desde lo cubierto y sin gastar de esa etapa y guarda el hash de la factura. Evento `gasto` |
+| `registrar_hito(ong, caso, etapa, hash_evidencia)` | La ONG del caso | Deja en la red el hash de la foto o documento. Evento `hito` |
+| `consultar_caso(caso)` | Cualquiera | Costo, cubierto y gastado de cada etapa, y saldo del caso |
+
+Toda función que mueve dinero o escribe datos exige la firma de quien la llama. La firma doble (ONG y validador) para los gastos queda para la etapa 2.
+
+## Cuentas de la demo
+
+`red:preparar` (o `db:seed`) crea el administrador (`admin@proofofwild.example`) y las cuentas de las 2 ONG (`contacto@alaslibres.example`, `hola@bosquevivo.example`) con la contraseña `DEMO_PASSWORD`. Ana y Fundación Huellitas crean su cuenta en vivo. El inicio de sesión usa SRP-6a: el navegador demuestra que conoce la contraseña sin enviarla y el servidor solo guarda la sal y el verificador.
 
 ## Estado del MVP
 
-Qué hay construido sobre la base de la arquitectura y cómo se verificó:
-
-| Requisito | Estado | Verificación |
-|---|---|---|
-| RF-CAT-01 catálogo y RF-CAT-02 detalle con línea de tiempo y panel de transparencia | Construido | Pruebas de integración y peticiones reales contra la base de datos |
-| RF-APA-02 confirmación de aportes (idempotente, con pendientes y reconciliación) | Construido | Pruebas de dominio, de integración y del adaptador contra Horizon testnet (solo lectura) |
-| RF-COM-01 comprobante con metadatos para compartir | Construido (sin botón de compartir) | Petición real: el HTML trae `og:title` |
-| RF-APA-01 apadrinamiento con Freighter | Escrito, **sin probar con la extensión** | Solo compilación y tipos; probar el flujo completo en testnet con una billetera real |
-| RF-GAS-01, RF-VAL-01 gastos y validación | Servicio y reglas construidos y probados; **sin pantallas ni rutas** | Pruebas de dominio e integración |
-| RF-HIT-01 registro de hitos | Reglas y línea de tiempo; **falta el servicio de registro** (mismo patrón que gastos) | Pruebas de dominio |
-| RF-PAN-01 mi panel, RF-CEN-01 perfil del centro | Por construir | — |
-| Ingreso al portal (centro, validador, administración) | Construido; sin límite de intentos | Sesión probada con peticiones reales; el formulario de ingreso no se probó de punta a punta |
-
-Antes de la demostración falta, además: un activo de prueba que represente USDC (emisora y línea de confianza), la cuenta del centro fondeada en testnet y las billeteras del centro y del validador.
+| Parte | Estado |
+|---|---|
+| Contrato con etapas, reparto, gasto al proveedor e hitos | Construido, 11 pruebas |
+| Script de preparación en testnet | Construido |
+| Inicio, lista de casos y detalle con línea de tiempo, transparencia y aportes | Construido con el diseño |
+| Cómo funciona | Construido |
+| Crear cuenta, ingresar (SRP-6a) y terminar perfil de persona | Construido y probado en el navegador |
+| Registro de ONG como solicitud en revisión | Construido y probado en el navegador |
+| Perfil público de la ONG | Construido |
+| Voluntariados con su inscripción | Construido y probado en el navegador |
+| Ventana de apadrinar con la billetera y comprobante; «Tu aporte» por etapa | Por construir |
+| Perfil del donante con su insignia y página pública | Por construir |
+| Portal de la ONG con registrar gasto e hito | Por construir |
 
 ## Estructura
 
 ```text
+contracts/proof-of-wild/  Contrato Soroban (Rust) y sus pruebas
+scripts/                  Preparación de la red y de las imágenes
 src/
-  app/            Presentación (Next.js): páginas, layouts y rutas API
-  components/     Componentes de interfaz reutilizables
-  modules/        Dominio y aplicación, un directorio por capacidad
-                  (catalog, cases, contributions, expenses, milestones, shared)
+  app/            Presentación (Next.js): páginas, layouts, acciones y rutas API
+  components/     Componentes de interfaz
+  modules/        Dominio y aplicación por capacidad (cases, catalog, shared)
   ports/          Puertos que el dominio necesita del exterior
-  platform/       Adaptadores y configuración
-                  (db, stellar, storage, auth, config, container.ts)
+  platform/       Adaptadores: db, stellar (contrato y plan B clásico), storage, auth, config
   lib/            Utilidades sin lógica de negocio
-drizzle/          Migraciones SQL versionadas
+public/           Fotos de la demo (sin EXIF) y logo
+drizzle/          Migraciones SQL
 docs/arquitectura/  Contexto, drivers y arquitectura
 tests/            Pruebas de dominio, adaptadores e integración
 ```
 
-Rutas HTTP: `GET /api/health`, `POST /api/contributions/prepare`, `POST /api/contributions/confirm`, `POST /api/jobs/reconcile` (con `Authorization: Bearer $CRON_SECRET`) y `GET /api/evidence/[key]` (solo con URL firmada).
-
-Reglas de dependencia entre capas en [`docs/arquitectura/arquitectura.md`](docs/arquitectura/arquitectura.md#5-estructura-del-repositorio-y-reglas-de-dependencia).
-
 ## Seguridad
 
-- No subas `.env` ni llaves secretas de Stellar al repositorio. Lo que se escribe en la red es público y no se puede borrar.
-- El servidor no guarda llaves secretas de Stellar: cada persona firma con su billetera.
+- No subas `.env`, `.data/` ni llaves secretas. Lo que se escribe en Stellar es público y no se puede borrar.
+- El servidor no guarda llaves de las personas: cada una firma con su billetera. Las llaves de `.data/cuentas-demo.json` son solo de testnet y solo para el script.
+- Las fotos se re-codifican sin metadatos (EXIF con GPS) y las facturas se publican sin datos personales de terceros.
