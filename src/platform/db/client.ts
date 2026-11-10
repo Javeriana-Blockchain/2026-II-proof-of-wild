@@ -4,7 +4,13 @@ import { getDatabaseEnv } from "@/platform/config/env";
 import * as schema from "./schema";
 
 function createDb() {
-  const client = postgres(getDatabaseEnv().DATABASE_URL, { max: 10 });
+  const client = postgres(getDatabaseEnv().DATABASE_URL, {
+    max: 5,
+    // Neon y otros PostgreSQL gestionados se usan con un pool tipo PgBouncer en modo transacción, que no
+    // admite sentencias preparadas con nombre. Desactivarlas no cambia nada en local.
+    prepare: false,
+    onnotice: () => {},
+  });
   return drizzle(client, { schema });
 }
 
