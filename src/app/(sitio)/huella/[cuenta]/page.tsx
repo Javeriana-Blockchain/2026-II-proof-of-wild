@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { BadgeCard, DonorSections, DonorTotals } from "@/components/huella/DonorSections";
+import { BadgeCard, DonorHeader, DonorSections, DonorTotals } from "@/components/huella/DonorSections";
 import { isStellarAccount, shortAccount } from "@/lib/stellar-account";
 import { getExplorerEnv } from "@/platform/config/env";
-import { evidenceUrl } from "@/platform/container";
+import { evidenceUrl, getCatalogService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
 import { getDonorView } from "@/platform/db/repositories/donor";
 
@@ -28,26 +28,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function HuellaPage({ params }: Props) {
   const { cuenta } = await params;
   if (!isStellarAccount(cuenta)) notFound();
-  const view = await getDonorView(getDb(), cuenta);
+  const [view, cases] = await Promise.all([getDonorView(getDb(), cuenta), getCatalogService().listCases()]);
+  const routes = new Map(cases.map((c) => [c.code, c.route]));
 
   return (
-    <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-8 lg:grid-cols-[1fr_2.2fr]">
-      <aside className="space-y-6">
-        <section className="rounded-3xl bg-white p-6">
-          <p className="font-display text-3xl font-bold">{view.alias ?? "Donante"}</p>
-          <p className="font-mono text-sm text-secundario">{shortAccount(cuenta)}</p>
-        </section>
-        <BadgeCard view={view} sharePath={`/huella/${cuenta}`} />
-      </aside>
-      <div className="space-y-6">
-        <h1 className="text-5xl">Huella verificada</h1>
-        <p className="text-secundario">
+    <main className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-8">
+      <DonorHeader name={view.alias ?? "Donante"} account={cuenta} seal={<BadgeCard view={view} sharePath={`/huella/${cuenta}`} />}>
+        <p>
           Estos aportes están en la red Stellar: cualquiera puede comprobarlos en Stellar Expert. Proof of Wild no muestra
           el nombre ni los datos de contacto de nadie.
         </p>
-        <DonorTotals view={view} own={false} />
-        <DonorSections view={view} explorerBaseUrl={getExplorerEnv().EXPLORER_BASE_URL} photo={evidenceUrl} own={false} />
-      </div>
+      </DonorHeader>
+      <DonorTotals view={view} own={false} />
+      <DonorSections
+        view={view}
+        explorerBaseUrl={getExplorerEnv().EXPLORER_BASE_URL}
+        photo={evidenceUrl}
+        own={false}
+        routes={routes}
+      />
     </main>
   );
 }

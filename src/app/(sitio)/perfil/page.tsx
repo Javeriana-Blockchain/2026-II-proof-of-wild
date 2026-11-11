@@ -2,11 +2,10 @@ import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireSession } from "@/app/_lib/session";
-import { BadgeCard, DonorSections, DonorTotals } from "@/components/huella/DonorSections";
+import { BadgeCard, DonorHeader, DonorSections, DonorTotals } from "@/components/huella/DonorSections";
 import { buttonClass } from "@/components/ui";
-import { shortAccount } from "@/lib/stellar-account";
 import { getExplorerEnv } from "@/platform/config/env";
-import { evidenceUrl } from "@/platform/container";
+import { evidenceUrl, getCatalogService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
 import { enrollmentsOf, getDonorView, type DonorView } from "@/platform/db/repositories/donor";
 import { personProfiles } from "@/platform/db/schema";
@@ -19,11 +18,14 @@ export const dynamic = "force-dynamic";
 export default async function PerfilPage() {
   const session = await requireSession("/perfil", "persona");
   const db = getDb();
-  const [profile] = await db
-    .select({ alias: personProfiles.alias, account: personProfiles.stellarAccount })
-    .from(personProfiles)
-    .where(eq(personProfiles.userId, session.userId))
-    .limit(1);
+  const [[profile], cases] = await Promise.all([
+    db
+      .select({ alias: personProfiles.alias, account: personProfiles.stellarAccount })
+      .from(personProfiles)
+      .where(eq(personProfiles.userId, session.userId))
+      .limit(1),
+    getCatalogService().listCases(),
+  ]);
 
   const account = profile?.account ?? null;
   const view: DonorView = account
@@ -37,45 +39,46 @@ export default async function PerfilPage() {
         volunteerings: await enrollmentsOf(db, session.userId),
       };
   const alias = profile?.alias ?? session.email;
+  const routes = new Map(cases.map((c) => [c.code, c.route]));
 
   return (
-    <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-8 lg:grid-cols-[1fr_2.2fr]">
-      <aside className="space-y-6">
-        <section className="space-y-4 rounded-3xl bg-white p-6">
-          <div className="flex items-center gap-4">
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-arena font-serif text-3xl">
-              {alias.charAt(0).toUpperCase()}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-lg font-semibold">{alias}</p>
-              <p className="font-mono text-sm whitespace-nowrap text-secundario">
-                {account ? shortAccount(account) : "Sin billetera vinculada"}
-              </p>
-            </div>
-          </div>
-          {account ? <DisconnectButton /> : null}
-        </section>
-        <BadgeCard view={view} sharePath={account ? `/huella/${account}` : "/#casos"} publicLink={account ? `/huella/${account}` : undefined} />
-        {!account ? (
-          <p className="rounded-2xl bg-crema p-5 text-sm">
+    <main className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-8">
+      <DonorHeader
+        name={alias}
+        account={account}
+        seal={
+          <BadgeCard
+            view={view}
+            sharePath={account ? `/huella/${account}` : "/#casos"}
+            publicLink={account ? `/huella/${account}` : undefined}
+          />
+        }
+        actions={
+          <>
+            {account ? <DisconnectButton /> : null}
+            {!profile?.alias ? (
+              <Link href="/cuenta/perfil" className={buttonClass("arena")}>
+                Completar mi perfil
+              </Link>
+            ) : null}
+          </>
+        }
+      >
+        {account ? null : (
+          <p>
             Tu billetera queda vinculada a tu perfil con tu primer aporte: al firmarlo demuestras que es tuya.{" "}
-            <Link href="/#casos" className="font-medium text-bosque underline">
+            <Link
+              href="/#casos"
+              className="font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena"
+            >
               Elegir un caso
             </Link>
           </p>
-        ) : null}
-        {!profile?.alias ? (
-          <Link href="/cuenta/perfil" className={buttonClass("secundario", "w-full")}>
-            Completar mi perfil
-          </Link>
-        ) : null}
-      </aside>
+        )}
+      </DonorHeader>
 
-      <div className="space-y-6">
-        <h1 className="text-6xl">Tu perfil</h1>
-        <DonorTotals view={view} />
-        <DonorSections view={view} explorerBaseUrl={getExplorerEnv().EXPLORER_BASE_URL} photo={evidenceUrl} own />
-      </div>
+      <DonorTotals view={view} />
+      <DonorSections view={view} explorerBaseUrl={getExplorerEnv().EXPLORER_BASE_URL} photo={evidenceUrl} own routes={routes} />
     </main>
   );
 }

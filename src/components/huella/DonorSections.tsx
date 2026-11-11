@@ -1,169 +1,286 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { formatAmount, formatDate, formatShortDate } from "@/app/_lib/format";
 import { IconoCheck, IconoHuella } from "@/components/iconos";
-import { buttonClass, ExplorerLink } from "@/components/ui";
+import { ContourField } from "@/components/mapa/ContourField";
+import { RouteMap } from "@/components/mapa/RouteMap";
+import { Reveal } from "@/components/movimiento/Reveal";
+import { buttonClass, Chip, EmptyState, ExplorerLink } from "@/components/ui";
 import { explorerTxUrl } from "@/lib/explorer";
+import type { RouteStage } from "@/modules/catalog";
 import type { DonorView } from "@/platform/db/repositories/donor";
 import { ShareButtons } from "./ShareButtons";
 
-/** Insignia «Huella verificada»: se activa con el primer aporte o voluntariado. */
-export function BadgeCard({ view, sharePath, publicLink }: { view: DonorView; sharePath: string; publicLink?: string }) {
+/** Lo que dice la insignia según lo que respalda: casos apoyados y voluntariados. */
+function badgeParts(view: DonorView): string[] {
   const casesCount = view.cases.length;
-  const active = casesCount > 0 || view.volunteerings.length > 0;
-  const parts = [
+  return [
     casesCount > 0 ? `Apoya ${casesCount} ${casesCount === 1 ? "caso" : "casos"}` : null,
     view.volunteerings.length > 0 ? "Voluntariado inscrito" : null,
-  ].filter(Boolean);
+  ].filter((p): p is string => !!p);
+}
+
+/**
+ * Insignia «Huella verificada» como un sello de mapa: anillo punteado que gira despacio, la huella al centro y el
+ * visto bueno cuando ya hay un aporte o un voluntariado. Debajo, compartir y la página pública.
+ */
+export function BadgeCard({ view, sharePath, publicLink }: { view: DonorView; sharePath: string; publicLink?: string }) {
+  const parts = badgeParts(view);
+  const active = parts.length > 0;
 
   return (
-    <section className="flex flex-col items-center gap-4 rounded-3xl bg-profundo p-8 text-center text-white">
-      <span className="relative flex h-28 w-28 items-center justify-center rounded-full border-4 border-arena bg-crema text-profundo">
-        <IconoHuella className="h-12 w-12" />
-        {active ? (
-          <span className="absolute -right-1 -bottom-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-crema bg-bosque text-white">
-            <IconoCheck />
-          </span>
-        ) : null}
+    <section aria-labelledby="titulo-insignia" className="flex flex-col items-center gap-4 text-center text-white">
+      <span className="relative flex h-40 w-40 items-center justify-center">
+        <svg
+          viewBox="0 0 160 160"
+          aria-hidden
+          className={`absolute inset-0 h-full w-full text-arena ${active ? "motion-safe:animate-[spin_40s_linear_infinite]" : "opacity-50"}`}
+        >
+          <circle cx="80" cy="80" r="76" fill="none" stroke="currentColor" strokeWidth="2.5" strokeDasharray="3 9" strokeLinecap="round" />
+          <circle cx="80" cy="80" r="64" fill="none" stroke="currentColor" strokeOpacity="0.45" strokeWidth="1.5" />
+        </svg>
+        <span
+          className={`relative flex h-28 w-28 items-center justify-center rounded-full border-4 border-arena text-profundo ${active ? "bg-crema" : "bg-crema/70"}`}
+        >
+          <IconoHuella className="h-12 w-12" />
+          {active ? (
+            <span className="absolute -right-1 -bottom-1 flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-crema bg-bosque text-white">
+              <IconoCheck className="h-5 w-5" />
+            </span>
+          ) : null}
+        </span>
       </span>
-      <h2 className="text-4xl">Huella verificada</h2>
+      <h2 id="titulo-insignia" className="text-4xl font-bold">
+        Huella verificada
+      </h2>
       {active ? (
         <>
           <p className="text-lg text-white/90">{parts.join(" · ")}</p>
-          <p className="text-sm text-white/80">Cada aporte que la respalda se puede comprobar en Stellar Expert.</p>
+          <p className="max-w-xs text-sm text-white/80">Cada aporte que la respalda se puede comprobar en Stellar Expert.</p>
           <ShareButtons path={sharePath} text={`Mi Huella verificada en Proof of Wild: ${parts.join(" · ")}.`} />
           {publicLink ? (
-            <Link href={publicLink} className="font-medium underline">
+            <Link
+              href={publicLink}
+              className="font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena"
+            >
               Ver la página pública de tu insignia
             </Link>
           ) : null}
         </>
       ) : (
-        <p className="text-white/85">Se activa con tu primer aporte o voluntariado.</p>
+        <p className="max-w-xs text-white/85">Se activa con tu primer aporte o voluntariado.</p>
       )}
     </section>
   );
 }
 
-export function DonorTotals({ view, own = true }: { view: DonorView; own?: boolean }) {
-  const items: Array<[string, string, string, string]> = [
-    ["Total aportado", formatAmount(view.totalAmount), "bg-bosque text-white", "text-white/80"],
-    [own ? "Casos que apoyas" : "Casos que apoya", String(view.cases.length), "bg-salvia text-texto", "text-texto/75"],
-    ["Voluntariados inscritos", String(view.volunteerings.length), "bg-arena text-texto", "text-texto/75"],
-  ];
+/**
+ * Cabecera de la huella (perfil propio o página pública): la inicial en una placa redonda, el nombre que se puede
+ * mostrar, la billetera y sus acciones, sobre curvas de nivel; a la derecha, el sello de la insignia.
+ */
+export function DonorHeader({
+  name,
+  account,
+  actions,
+  seal,
+  children,
+}: {
+  name: string;
+  account: string | null;
+  actions?: ReactNode;
+  seal: ReactNode;
+  children?: ReactNode;
+}) {
   return (
-    <dl className="grid gap-4 sm:grid-cols-3">
-      {items.map(([label, value, plate, sub]) => (
-        <div key={label} className={`rounded-[22px] p-5 ${plate}`}>
-          <dt className={`rotulo ${sub}`}>{label}</dt>
-          <dd className="cifras mt-1 font-display text-4xl font-bold">{value}</dd>
+    <Reveal
+      as="header"
+      variant="capa"
+      className="relative isolate grid items-center gap-10 overflow-hidden rounded-[32px] bg-profundo p-8 text-white sm:p-10 lg:grid-cols-[minmax(0,1fr)_auto]"
+    >
+      <ContourField variant="noche" seed={23} className="absolute inset-0 -z-10 h-full w-full" />
+      <div className="space-y-5">
+        <span className="flex h-20 w-20 items-center justify-center rounded-full bg-crema font-display text-4xl font-bold text-profundo ring-4 ring-arena">
+          {name.charAt(0).toUpperCase()}
+        </span>
+        <div className="space-y-2">
+          <h1 className="text-5xl font-bold break-words sm:text-6xl">{name}</h1>
+          <p className="inline-flex items-center gap-2 rounded-md border border-white/25 px-2.5 py-1 font-mono text-sm text-white/85">
+            <span aria-hidden className={`h-2 w-2 rounded-full ${account ? "bg-salvia" : "bg-white/40"}`} />
+            {account ? `${account.slice(0, 4)}…${account.slice(-5)}` : "Sin billetera vinculada"}
+          </p>
         </div>
-      ))}
-    </dl>
+        {children ? <div className="max-w-xl text-white/85">{children}</div> : null}
+        {actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}
+      </div>
+      <div className="lg:px-6">{seal}</div>
+    </Reveal>
   );
 }
 
-/** Mis casos, historial de aportes y voluntariados de una billetera. */
+/** Totales de la huella en una franja de leyenda con líneas finas. */
+export function DonorTotals({ view, own = true }: { view: DonorView; own?: boolean }) {
+  const items: Array<[string, string]> = [
+    ["Total aportado", formatAmount(view.totalAmount)],
+    [own ? "Casos que apoyas" : "Casos que apoya", String(view.cases.length)],
+    ["Voluntariados inscritos", String(view.volunteerings.length)],
+  ];
+  return (
+    <Reveal as="dl" variant="sube" className="grid border-y-2 border-texto/80 sm:grid-cols-3">
+      {items.map(([label, value], i) => (
+        <div key={label} className={`border-arena px-5 py-4 ${i > 0 ? "border-t sm:border-t-0 sm:border-l" : ""}`}>
+          <dt className="rotulo text-secundario">{label}</dt>
+          <dd className={`cifras mt-1 font-display text-4xl font-bold ${i === 0 ? "text-bosque" : ""}`}>{value}</dd>
+        </div>
+      ))}
+    </Reveal>
+  );
+}
+
+/** Mis casos (con su ruta y en qué se usó el aporte), el historial de aportes y los voluntariados de una billetera. */
 export function DonorSections({
   view,
   explorerBaseUrl,
   photo,
   own,
+  routes,
 }: {
   view: DonorView;
   explorerBaseUrl: string;
   photo: (path: string) => string;
   own: boolean;
+  /** Ruta de cada caso por código, para dibujarla junto a lo que aportó esta billetera. */
+  routes?: Map<string, RouteStage[]>;
 }) {
   if (view.cases.length === 0 && view.volunteerings.length === 0) {
     return (
-      <section className="space-y-4 rounded-3xl bg-white p-8 text-center">
-        <p className="text-xl">{own ? "Aún no apadrinas ningún caso." : "Esta billetera aún no apoya ningún caso."}</p>
-        <Link href="/#casos" className={buttonClass("primario")}>
-          Ver casos
-        </Link>
-      </section>
+      <EmptyState
+        title={own ? "Aún no apadrinas ningún caso." : "Esta billetera aún no apoya ningún caso."}
+        action={
+          <Link href="/#casos" className={buttonClass("primario")}>
+            Ver casos
+          </Link>
+        }
+      >
+        {own ? "Elige un animal, apadrínalo con tu billetera y aquí verás en qué etapa se usó tu aporte." : null}
+      </EmptyState>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-12">
       {view.cases.length > 0 ? (
-        <section aria-labelledby="mis-casos" className="space-y-3">
-          <h2 id="mis-casos" className="font-sans text-xl font-semibold">
+        <section aria-labelledby="mis-casos" className="space-y-5">
+          <Reveal as="h2" variant="sube" id="mis-casos" className="text-4xl">
             {own ? "Mis casos" : "Casos que apoya"}
-          </h2>
-          {view.cases.map((c) => (
-            <article key={c.code} className="grid overflow-hidden rounded-3xl bg-white shadow-sm sm:grid-cols-[12rem_1fr] xl:grid-cols-[14rem_1fr_18rem]">
-              <div className="relative min-h-40 sm:row-span-2 xl:row-span-1">
-                {c.photoPath ? <Image src={photo(c.photoPath)} alt={c.name} fill sizes="224px" className="object-cover" /> : null}
-              </div>
-              <div className="space-y-2 p-5 pb-0 xl:pb-5">
-                <p className="text-sm text-secundario">
-                  {c.code} · {c.ngoName}
-                </p>
-                <h3 className="text-3xl">{c.name}</h3>
-                {c.lastUpdate ? (
-                  <p>
-                    <strong>Última actualización:</strong> {formatShortDate(c.lastUpdate.at)} · {c.lastUpdate.text}
-                  </p>
-                ) : null}
-                <Link href={`/casos/${c.code}`} className="font-medium text-bosque underline">
-                  Ver el caso
-                </Link>
-              </div>
-              <div className="m-5 self-start rounded-2xl bg-salvia p-5 xl:self-center">
-                <p className="font-semibold">{own ? "Tu aporte se usó en" : "Su aporte se usó en"}</p>
-                <ul className="mt-2 space-y-1">
-                  {c.allocations.map((a) => (
-                    <li key={a.stageName} className="flex justify-between gap-3">
-                      <span>{a.stageName}</span>
-                      <strong className="whitespace-nowrap">{formatAmount(a.amount)}</strong>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </article>
-          ))}
+          </Reveal>
+          {view.cases.map((c, i) => {
+            const route = routes?.get(c.code);
+            return (
+              <Reveal
+                as="article"
+                variant="capa"
+                delay={i}
+                key={c.code}
+                className="group/caso grid overflow-hidden rounded-[28px] bg-white ring-1 ring-arena/70 transition-[transform,--tw-ring-color] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:ring-bosque/60 md:grid-cols-[15rem_minmax(0,1fr)]"
+              >
+                <div className="relative min-h-52 overflow-hidden bg-salvia">
+                  {c.photoPath ? (
+                    <Image
+                      src={photo(c.photoPath)}
+                      alt={c.name}
+                      fill
+                      sizes="(min-width: 768px) 240px, 100vw"
+                      className="object-cover transition-transform duration-700 ease-(--ease-out-expo) group-hover/caso:scale-[1.05]"
+                    />
+                  ) : null}
+                </div>
+                <div className="space-y-5 p-6 sm:p-7">
+                  <div className="space-y-1">
+                    <h3 className="text-3xl">
+                      <Link href={`/casos/${c.code}`} className="transition-colors hover:text-bosque">
+                        {c.name}
+                      </Link>
+                    </h3>
+                    <p className="flex flex-wrap items-center gap-x-2 text-sm text-secundario">
+                      <span className="cifras font-semibold">{c.code}</span>
+                      <span aria-hidden>·</span>
+                      <span>{c.ngoName}</span>
+                    </p>
+                    {c.lastUpdate ? (
+                      <p className="pt-2">
+                        <strong>Última actualización:</strong> {formatShortDate(c.lastUpdate.at)} · {c.lastUpdate.text}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {route ? (
+                    <RouteMap stages={route} size="compacto" showAmounts={false} label={`Ruta del tratamiento de ${c.name}`} />
+                  ) : null}
+
+                  <div className="rounded-[20px] bg-salvia p-5">
+                    <p className="font-semibold">{own ? "Tu aporte se usó en" : "Su aporte se usó en"}</p>
+                    <ul className="mt-2 divide-y divide-texto/15">
+                      {c.allocations.map((a) => (
+                        <li key={a.stageName} className="flex items-baseline justify-between gap-4 py-1.5">
+                          <span>{a.stageName}</span>
+                          <strong className="cifras whitespace-nowrap">{formatAmount(a.amount)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <Link href={`/casos/${c.code}`} className="enlace inline-block">
+                    Ver el caso
+                  </Link>
+                </div>
+              </Reveal>
+            );
+          })}
         </section>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <section className="rounded-3xl bg-white p-6" aria-labelledby="historial">
-          <h2 id="historial" className="mb-3 border-b border-arena pb-2 font-sans text-xl font-semibold">
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <Reveal as="section" variant="sube" aria-labelledby="historial" className="border-t-2 border-texto/80 pt-4">
+          <h2 id="historial" className="text-3xl">
             Historial de aportes
           </h2>
           {view.contributions.length === 0 ? (
-            <p className="text-secundario">Sin aportes todavía.</p>
+            <p className="mt-3 text-secundario">Sin aportes todavía.</p>
           ) : (
-            <ul className="divide-y divide-arena/40">
+            <ul className="mt-3 divide-y divide-arena">
               {view.contributions.map((c) => (
-                <li key={c.txHash} className="flex items-start justify-between gap-3 py-3">
+                <li
+                  key={c.txHash}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-1 rounded-lg py-3.5 transition-colors hover:bg-white/50"
+                >
                   <span className="min-w-0">
-                    {formatShortDate(c.confirmedAt)} · {c.caseName}
-                    <span className="mt-1 flex gap-4 text-sm">
-                      <Link href={`/comprobante/${c.txHash}`} className="font-medium text-bosque underline">
-                        Comprobante
-                      </Link>
-                      <ExplorerLink href={explorerTxUrl(explorerBaseUrl, c.txHash)} />
-                    </span>
+                    <span className="cifras text-sm text-secundario">{formatShortDate(c.confirmedAt)}</span>
+                    <span className="block font-semibold">{c.caseName}</span>
                   </span>
-                  <strong className="whitespace-nowrap">{formatAmount(c.amount)}</strong>
+                  <strong className="cifras font-display text-2xl whitespace-nowrap">{formatAmount(c.amount)}</strong>
+                  <span className="col-span-2 flex flex-wrap gap-x-4 text-sm">
+                    <Link href={`/comprobante/${c.txHash}`} className="enlace">
+                      Comprobante
+                    </Link>
+                    <ExplorerLink href={explorerTxUrl(explorerBaseUrl, c.txHash)} />
+                  </span>
                 </li>
               ))}
             </ul>
           )}
-        </section>
-        <section className="rounded-3xl bg-white p-6" aria-labelledby="voluntariados">
-          <h2 id="voluntariados" className="mb-3 border-b border-arena pb-2 font-sans text-xl font-semibold">
+        </Reveal>
+
+        <Reveal as="section" variant="sube" delay={1} aria-labelledby="voluntariados" className="border-t-2 border-texto/80 pt-4">
+          <h2 id="voluntariados" className="text-3xl">
             {own ? "Mis voluntariados" : "Voluntariados"}
           </h2>
           {view.volunteerings.length === 0 ? (
-            <p className="text-secundario">
+            <p className="mt-3 text-secundario">
               {own ? (
                 <>
                   Aún no te inscribes.{" "}
-                  <Link href="/#voluntariados" className="font-medium text-bosque underline">
+                  <Link href="/#voluntariados" className="enlace">
                     Ver voluntariados
                   </Link>
                 </>
@@ -172,18 +289,20 @@ export function DonorSections({
               )}
             </p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="mt-3 divide-y divide-arena">
               {view.volunteerings.map((v) => (
-                <li key={v.ngoName + v.date} className="flex items-center justify-between gap-3">
+                <li key={v.ngoName + v.date} className="flex items-start justify-between gap-3 py-3.5">
                   <span className="min-w-0">
-                    {v.ngoName} · {formatDate(v.date)}
+                    <span className="cifras text-sm text-secundario">{formatDate(v.date)}</span>
+                    <span className="block font-semibold">{v.ngoName}</span>
+                    <span className="block text-sm text-secundario">{v.title}</span>
                   </span>
-                  <span className="rounded-full bg-crema px-3 py-0.5 text-sm font-semibold">Inscrito</span>
+                  <Chip tone="logro">Inscrito</Chip>
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </Reveal>
       </div>
     </div>
   );
