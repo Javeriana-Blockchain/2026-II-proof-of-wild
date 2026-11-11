@@ -6,7 +6,7 @@ export async function SiteHeader() {
   const session = await getSession();
   const account = session
     ? {
-        label: session.role === "ong" ? "Mi portal" : "Mi perfil",
+        label: session.role === "ong" ? "Mi portal" : session.role === "admin" ? "Administrador" : "Mi perfil",
         href: homeFor(session),
         profileHref: session.role === "persona" ? "/perfil" : null,
       }

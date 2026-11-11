@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { WalletChip } from "@/components/billetera/WalletChip";
 import { IconoMenu } from "@/components/iconos";
-import { buttonClass } from "@/components/ui";
+import { logout } from "@/app/ingresar/actions";
+import { buttonClass, Spinner } from "@/components/ui";
 import { Logo } from "./Logo";
 import { SECCIONES } from "./secciones";
 
@@ -112,6 +113,27 @@ export function SiteNav({ account }: { account: Account }) {
     return () => window.removeEventListener("resize", measure);
   }, [measure]);
 
+  const router = useRouter();
+  const [leaving, setLeaving] = useState(false);
+  const salir = async () => {
+    setLeaving(true);
+    try {
+      await logout();
+    } finally {
+      setOpen(false);
+      router.push("/");
+      router.refresh();
+      setLeaving(false);
+    }
+  };
+  const salirBoton = account ? (
+    <button type="button" onClick={salir} disabled={leaving} className={`${textLink} cursor-pointer disabled:opacity-60`}>
+      {leaving ? <Spinner className="mr-1.5 h-4 w-4" /> : null}
+      Cerrar sesión
+      <span aria-hidden className={textLinkLine} />
+    </button>
+  ) : null;
+
   const account_ = account ? (
     <Link href={account.href} className={buttonClass("primario", "shrink-0 py-2.5 whitespace-nowrap")}>
       <span aria-hidden className="h-2 w-2 shrink-0 animate-brillo rounded-full bg-salvia" />
@@ -176,6 +198,7 @@ export function SiteNav({ account }: { account: Account }) {
             </>
           )}
           {account_}
+          {salirBoton}
         </div>
 
         <button
@@ -225,6 +248,7 @@ export function SiteNav({ account }: { account: Account }) {
                 <span aria-hidden className={textLinkLine} />
               </Link>
             )}
+            {salirBoton}
             <span className="ml-auto">{account_}</span>
           </div>
         </div>
