@@ -9,7 +9,8 @@ import { signIn, signUp } from "./srp-client";
 type Mode = "crear" | "ingresar";
 type Role = "persona" | "ong";
 
-const field = "mt-1 w-full rounded-xl border border-arena bg-white px-4 py-3 outline-none focus:border-bosque";
+const field =
+  "mt-1 w-full rounded-xl border-2 border-arena bg-white px-4 py-3 outline-none transition-[border-color,box-shadow] duration-200 hover:border-bosque/50 focus:border-bosque focus:ring-4 focus:ring-salvia/45";
 
 /** Pantalla «Cuenta 1»: una tarjeta con dos pestañas, Crear cuenta e Ingresar. */
 export function AccountForms({ initialMode, initialRole, returnTo }: { initialMode: Mode; initialRole: Role; returnTo?: string }) {

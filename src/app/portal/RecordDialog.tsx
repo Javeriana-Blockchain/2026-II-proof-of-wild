@@ -6,7 +6,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { CATEGORY_LABELS } from "@/app/_lib/labels";
 import { useWallet, walletErrorMessage } from "@/components/billetera/WalletProvider";
 import { IconoCheck, IconoMenu } from "@/components/iconos";
-import { buttonClass } from "@/components/ui";
+import { buttonClass, Spinner } from "@/components/ui";
 import { shortAccount } from "@/lib/stellar-account";
 
 export interface PortalCaseOption {
@@ -24,7 +24,8 @@ const STEP_LABELS: Record<Exclude<Step, "idle">, string> = {
   confirming: "La red está confirmando…",
 };
 
-const field = "mt-1 w-full rounded-xl border border-arena bg-white px-4 py-3 outline-none focus:border-bosque";
+const field =
+  "mt-1 w-full rounded-xl border-2 border-arena bg-white px-4 py-3 outline-none transition-[border-color,box-shadow] duration-200 hover:border-bosque/50 focus:border-bosque focus:ring-4 focus:ring-salvia/45";
 type ApiError = { error?: { message: string } };
 
 /** Ventanas B (registrar hito) y C (registrar gasto) del portal de la ONG. */
@@ -288,7 +289,7 @@ export function RecordDialog({
             {error ? (
               <div role="alert" className="flex items-center justify-between gap-4 rounded-2xl border border-error px-5 py-4 text-error lg:col-span-2">
                 <span className="font-medium">{error}</span>
-                <button type="submit" className="rounded-full bg-error px-5 py-2 font-semibold text-white">
+                <button type="submit" className="mov-hover cursor-pointer rounded-xl bg-error px-5 py-2 font-semibold text-white transition-transform duration-200 ease-(--ease-spring) hover:-translate-y-0.5 active:scale-95">
                   Reintentar
                 </button>
               </div>
@@ -304,6 +305,7 @@ export function RecordDialog({
                   Cancelar
                 </button>
                 <button type="submit" disabled={busy || cases.length === 0} className={buttonClass("primario")}>
+                  {busy ? <Spinner className="h-5 w-5" /> : null}
                   {busy ? STEP_LABELS[step as Exclude<Step, "idle">] : kind === "gasto" ? "Firmar y registrar gasto" : "Firmar y registrar hito"}
                 </button>
               </div>

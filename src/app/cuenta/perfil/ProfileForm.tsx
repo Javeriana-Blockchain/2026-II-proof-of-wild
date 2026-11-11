@@ -7,7 +7,8 @@ import { IconoCheck, IconoHuella } from "@/components/iconos";
 import { buttonClass } from "@/components/ui";
 import { saveProfile, type ProfileInput } from "./actions";
 
-const field = "mt-1 w-full rounded-xl border border-arena bg-white px-4 py-3 outline-none focus:border-bosque";
+const field =
+  "mt-1 w-full rounded-xl border-2 border-arena bg-white px-4 py-3 outline-none transition-[border-color,box-shadow] duration-200 hover:border-bosque/50 focus:border-bosque focus:ring-4 focus:ring-salvia/45";
 
 const INTERESES = [
   ["aves", "Aves"],

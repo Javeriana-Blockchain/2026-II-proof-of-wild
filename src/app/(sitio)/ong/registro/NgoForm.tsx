@@ -6,7 +6,8 @@ import { useState, type FormEvent } from "react";
 import { buttonClass } from "@/components/ui";
 import { submitNgoApplication, type NgoApplication } from "./actions";
 
-const field = "mt-1 w-full rounded-xl border border-arena bg-white px-4 py-3 outline-none focus:border-bosque";
+const field =
+  "mt-1 w-full rounded-xl border-2 border-arena bg-white px-4 py-3 outline-none transition-[border-color,box-shadow] duration-200 hover:border-bosque/50 focus:border-bosque focus:ring-4 focus:ring-salvia/45";
 
 /** Formulario del registro de ONG, con el aviso de tratamiento de datos (Ley 1581 de 2012). */
 export function NgoForm({ contactEmail }: { contactEmail: string }) {

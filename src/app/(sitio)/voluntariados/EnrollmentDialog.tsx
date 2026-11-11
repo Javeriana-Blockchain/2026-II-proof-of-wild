@@ -9,7 +9,8 @@ import { buttonClass } from "@/components/ui";
 import type { PublicVolunteering } from "@/platform/db/repositories/volunteering";
 import { submitEnrollment } from "./actions";
 
-const field = "mt-1 w-full rounded-xl border border-arena bg-white px-4 py-3 outline-none focus:border-bosque";
+const field =
+  "mt-1 w-full rounded-xl border-2 border-arena bg-white px-4 py-3 outline-none transition-[border-color,box-shadow] duration-200 hover:border-bosque/50 focus:border-bosque focus:ring-4 focus:ring-salvia/45";
 
 const AVAILABILITY = [
   ["toda_la_jornada", "Toda la jornada"],
