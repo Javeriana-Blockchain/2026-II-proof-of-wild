@@ -264,3 +264,19 @@ html {
     animation-name: fondo;
   }
 }
+
+/* Sello del comprobante: cae y se asienta como un timbre. */
+.sello {
+  animation: sello 0.7s var(--ease-spring) 0.5s both;
+}
+@keyframes sello {
+  from {
+    opacity: 0;
+    transform: rotate(-18deg) scale(1.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sello {
+    animation-name: fondo;
+  }
+}

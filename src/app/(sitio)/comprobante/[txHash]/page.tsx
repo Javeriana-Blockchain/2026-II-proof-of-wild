@@ -7,6 +7,7 @@ import { IconoCheck } from "@/components/iconos";
 import { buttonClass, ExplorerLink } from "@/components/ui";
 import { shortAccount } from "@/lib/stellar-account";
 import { getCatalogService } from "@/platform/container";
+import { Reveal } from "@/components/movimiento/Reveal";
 
 export const dynamic = "force-dynamic";
 
@@ -32,15 +33,15 @@ export default async function ComprobantePage({ params }: Props) {
 
   return (
     <main className="mx-auto grid max-w-5xl gap-6 px-4 py-10 sm:px-8 md:grid-cols-[1fr_1.4fr]">
-      <aside className="space-y-4 rounded-3xl bg-white p-6">
-        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-crema">
+      <Reveal as="aside" variant="capa" className="space-y-4 rounded-[28px] bg-white p-6 ring-1 ring-arena/70">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] bg-salvia">
           {receipt.photoUrl ? <Image src={receipt.photoUrl} alt={receipt.caseName} fill sizes="400px" className="object-cover" /> : null}
         </div>
-        <p className="font-serif text-3xl">{receipt.caseName}</p>
+        <p className="font-display text-3xl font-bold">{receipt.caseName}</p>
         <p className="text-secundario">
           {receipt.caseCode} · {receipt.ngoName}
         </p>
-        <div className="rounded-2xl bg-salvia p-5">
+        <div className="rounded-[20px] bg-salvia p-5">
           <p className="font-semibold">Cómo se repartió el aporte</p>
           <ul className="mt-2 space-y-1.5">
             {receipt.allocations.map((a) => (
@@ -48,21 +49,29 @@ export default async function ComprobantePage({ params }: Props) {
                 <span>
                   {a.position}. {a.stageName}
                 </span>
-                <strong className="whitespace-nowrap">{formatAmount(a.amount)}</strong>
+                <strong className="cifras whitespace-nowrap">{formatAmount(a.amount)}</strong>
               </li>
             ))}
           </ul>
         </div>
-      </aside>
+      </Reveal>
 
-      <section className="space-y-6 rounded-3xl bg-white p-8">
-        <h1 className="flex items-center gap-4 text-4xl">
+      <Reveal as="section" variant="pop" delay={1} className="relative space-y-6 overflow-hidden rounded-[28px] bg-white p-8 ring-1 ring-arena/70">
+        {/* Sello de registro: cae sobre el comprobante como un timbre. */}
+        <span
+          aria-hidden
+          className="sello rotulo absolute top-6 right-6 hidden -rotate-6 flex-col items-center rounded-xl border-2 border-dashed border-bosque px-3 py-2 text-center text-bosque sm:flex"
+        >
+          <span>Registrado</span>
+          <span>en Stellar</span>
+        </span>
+        <h1 className="flex items-center gap-4 text-4xl sm:pr-32">
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-bosque text-white">
             <IconoCheck className="h-7 w-7" />
           </span>
           Comprobante de aporte
         </h1>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-8 gap-y-3 rounded-2xl bg-gris p-5">
+        <dl className="cifras grid grid-cols-[auto_1fr] gap-x-8 gap-y-3 rounded-[20px] bg-crema p-5">
           <dt className="text-secundario">Monto</dt>
           <dd className="font-semibold">{formatAmount(receipt.amount)}</dd>
           <dt className="text-secundario">Caso</dt>
@@ -93,7 +102,7 @@ export default async function ComprobantePage({ params }: Props) {
             Ver la Huella de esta billetera
           </Link>
         </div>
-      </section>
+      </Reveal>
     </main>
   );
 }

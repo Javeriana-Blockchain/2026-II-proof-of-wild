@@ -34,8 +34,7 @@ export default async function HuellaPage({ params }: Props) {
     <main className="mx-auto grid max-w-7xl gap-6 px-4 py-8 sm:px-8 lg:grid-cols-[1fr_2.2fr]">
       <aside className="space-y-6">
         <section className="rounded-3xl bg-white p-6">
-          <p className="text-sm text-secundario">Huella de</p>
-          <p className="text-2xl font-semibold">{view.alias ?? "Donante"}</p>
+          <p className="font-display text-3xl font-bold">{view.alias ?? "Donante"}</p>
           <p className="font-mono text-sm text-secundario">{shortAccount(cuenta)}</p>
         </section>
         <BadgeCard view={view} sharePath={`/huella/${cuenta}`} />

@@ -46,17 +46,17 @@ export function BadgeCard({ view, sharePath, publicLink }: { view: DonorView; sh
 }
 
 export function DonorTotals({ view, own = true }: { view: DonorView; own?: boolean }) {
-  const items: Array<[string, string, string]> = [
-    ["Total aportado", formatAmount(view.totalAmount), "border-t-bosque"],
-    [own ? "Casos que apoyas" : "Casos que apoya", String(view.cases.length), "border-t-salvia"],
-    ["Voluntariados inscritos", String(view.volunteerings.length), "border-t-arena"],
+  const items: Array<[string, string, string, string]> = [
+    ["Total aportado", formatAmount(view.totalAmount), "bg-bosque text-white", "text-white/80"],
+    [own ? "Casos que apoyas" : "Casos que apoya", String(view.cases.length), "bg-salvia text-texto", "text-texto/75"],
+    ["Voluntariados inscritos", String(view.volunteerings.length), "bg-arena text-texto", "text-texto/75"],
   ];
   return (
     <dl className="grid gap-4 sm:grid-cols-3">
-      {items.map(([label, value, border]) => (
-        <div key={label} className={`rounded-2xl border-t-4 bg-white p-5 ${border}`}>
-          <dt className="text-sm text-secundario">{label}</dt>
-          <dd className="mt-1 font-serif text-4xl">{value}</dd>
+      {items.map(([label, value, plate, sub]) => (
+        <div key={label} className={`rounded-[22px] p-5 ${plate}`}>
+          <dt className={`rotulo ${sub}`}>{label}</dt>
+          <dd className="cifras mt-1 font-display text-4xl font-bold">{value}</dd>
         </div>
       ))}
     </dl>
