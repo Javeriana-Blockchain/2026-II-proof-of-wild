@@ -2,39 +2,68 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { WalletChip } from "@/components/billetera/WalletChip";
 import { IconoMenu } from "@/components/iconos";
-import { buttonClass, TestnetBadge } from "@/components/ui";
+import { buttonClass } from "@/components/ui";
 import { Logo } from "./Logo";
 import { SECCIONES } from "./secciones";
 
-
 type Account = { label: string; href: string; profileHref: string | null } | null;
 
-/** Sección visible en la página principal: la última cuyo inicio ya pasó debajo del menú. */
+/**
+ * Sección visible en la página principal: la que cruza una franja delgada a media pantalla. Usa un
+ * IntersectionObserver, así se actualiza también cuando la página termina de acomodarse (fotos, fuentes) y no solo
+ * al hacer scroll. Arriba del todo es «Inicio».
+ */
 function useActiveSection(enabled: boolean): string | null {
-  const [active, setActive] = useState<string | null>(null);
+  const [active, setActive] = useState<string>("inicio");
   useEffect(() => {
     if (!enabled) return;
-    const els = SECCIONES.map((s) => document.getElementById(s.id)).filter((el): el is HTMLElement => !!el);
-    const update = () => {
-      const line = window.innerHeight * 0.35;
-      let current: string | null = els[0]?.id ?? null;
-      for (const el of els) if (el.getBoundingClientRect().top <= line) current = el.id;
-      setActive(current);
+    let io: IntersectionObserver | null = null;
+    let timer = 0;
+    let tries = 0;
+    const visible = new Set<string>();
+    const start = () => {
+      const els = SECCIONES.map((s) => document.getElementById(s.id)).filter((el): el is HTMLElement => !!el);
+      // La página puede llegar después de la pantalla de carga: espera a que estén todas las secciones.
+      if (els.length < SECCIONES.length && ++tries < 50) {
+        timer = window.setTimeout(start, 100);
+        return;
+      }
+      io = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) visible.add(entry.target.id);
+            else visible.delete(entry.target.id);
+          }
+          const current = SECCIONES.find((s) => visible.has(s.id));
+          if (current) setActive(current.id);
+        },
+        { rootMargin: "-40% 0px -55% 0px" },
+      );
+      els.forEach((el) => io!.observe(el));
     };
-    update();
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
+    start();
     return () => {
-      window.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
+      window.clearTimeout(timer);
+      io?.disconnect();
     };
   }, [enabled]);
   return enabled ? active : null;
 }
 
+/** Enlace de texto del menú: sin subrayado fijo; la línea se dibuja al pasar el mouse. */
+const textLink =
+  "group/enlace relative inline-flex items-center rounded-md py-2 font-semibold whitespace-nowrap text-texto transition-colors duration-200 hover:text-bosque";
+const textLinkLine =
+  "absolute inset-x-0 bottom-1 h-0.5 origin-left scale-x-0 rounded-full bg-bosque transition-transform duration-300 ease-(--ease-out-expo) group-hover/enlace:scale-x-100";
+
+/**
+ * Menú superior, igual en todas las páginas públicas. En escritorio son tres columnas: la marca (con la marca de la
+ * demo), las secciones en una sola barra con una placa que se desliza hasta la sección visible, y la cuenta.
+ * En el celular, la marca y un botón que despliega todo.
+ */
 export function SiteNav({ account }: { account: Account }) {
   const pathname = usePathname();
   const onHome = pathname === "/";
@@ -58,6 +87,7 @@ export function SiteNav({ account }: { account: Account }) {
     }, 75);
     return () => window.clearInterval(timer);
   }, [pathname]);
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -65,66 +95,86 @@ export function SiteNav({ account }: { account: Account }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const isActive = (id: string) => (onHome ? active === id : id === "casos" && pathname.startsWith("/casos"));
+  const currentId = onHome ? active : pathname.startsWith("/casos") ? "casos" : null;
 
-  const links = SECCIONES.map(({ id, label }) => (
-    <li key={id}>
-      <Link
-        href={`/#${id}`}
-        onClick={() => setOpen(false)}
-        aria-current={isActive(id) ? "location" : undefined}
-        className={`group relative inline-flex items-center gap-2 rounded-md px-1 py-2 whitespace-nowrap transition-colors duration-200 ${isActive(id) ? "font-semibold text-bosque" : "text-texto hover:text-bosque"}`}
-      >
-        <span
-          aria-hidden
-          className={`h-2 w-2 rounded-full border-2 border-bosque transition-all duration-300 ease-(--ease-spring) ${isActive(id) ? "scale-100 bg-bosque" : "scale-0 group-hover:scale-100"}`}
-        />
-        {label}
-        <span
-          aria-hidden
-          className={`absolute inset-x-1 -bottom-0.5 h-0.5 origin-left rounded-full bg-bosque transition-transform duration-300 ease-(--ease-out-expo) ${isActive(id) ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100"}`}
-        />
-      </Link>
-    </li>
-  ));
+  // Placa que se desliza bajo la sección activa.
+  const barRef = useRef<HTMLUListElement>(null);
+  const [plate, setPlate] = useState<{ left: number; width: number } | null>(null);
+  const measure = useCallback(() => {
+    const bar = barRef.current;
+    const link = currentId ? bar?.querySelector<HTMLElement>(`[data-seccion="${currentId}"]`) : null;
+    setPlate(link ? { left: link.offsetLeft, width: link.offsetWidth } : null);
+  }, [currentId]);
+  useLayoutEffect(measure, [measure]);
+  useEffect(() => {
+    window.addEventListener("resize", measure);
+    document.fonts?.ready.then(measure).catch(() => {});
+    return () => window.removeEventListener("resize", measure);
+  }, [measure]);
 
-  const actions = (inMenu: boolean) => (
-    <>
-      <Link href="/ong/registro" className={`enlace whitespace-nowrap ${inMenu ? "" : "hidden xl:inline"}`}>
-        Soy ONG
-      </Link>
-      <WalletChip profileHref={account?.profileHref ?? null} />
-      {account ? (
-        <Link href={account.href} className={buttonClass("primario", "py-2.5")}>
-          <span aria-hidden className="h-2 w-2 animate-brillo rounded-full bg-salvia" />
-          {account.label}
-        </Link>
-      ) : (
-        <>
-          <Link href="/ingresar?modo=ingresar" className="enlace whitespace-nowrap">
-            Ingresar
-          </Link>
-          <Link href="/ingresar" className={buttonClass("primario", "py-2.5")}>
-            Crear cuenta
-          </Link>
-        </>
-      )}
-    </>
+  const account_ = account ? (
+    <Link href={account.href} className={buttonClass("primario", "py-2.5")}>
+      <span aria-hidden className="h-2 w-2 animate-brillo rounded-full bg-salvia" />
+      {account.label}
+    </Link>
+  ) : (
+    <Link href="/ingresar" className={buttonClass("primario", "py-2.5")}>
+      Crear cuenta
+    </Link>
   );
 
   return (
     <header
-      className={`sticky top-0 z-40 border-b bg-crema transition-[border-color,box-shadow] duration-300 ${scrolled ? "border-arena" : "border-transparent"}`}
+      className={`sticky top-0 z-40 border-b bg-crema transition-[border-color] duration-300 ${scrolled ? "border-arena" : "border-transparent"}`}
     >
-      <nav aria-label="Principal" className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
-        <Logo />
-        <ul className="hidden items-center gap-4 lg:flex xl:gap-7">{links}</ul>
-        <div className="hidden items-center gap-4 lg:flex">
-          <span className="hidden xl:inline-flex">
-            <TestnetBadge />
-          </span>
-          {actions(false)}
+      <nav
+        aria-label="Principal"
+        className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-8 lg:grid lg:grid-cols-[1fr_auto_1fr]"
+      >
+        <Logo testnet />
+
+        <ul ref={barRef} className="relative hidden items-center gap-1 rounded-2xl bg-white/80 p-1.5 ring-1 ring-arena lg:flex">
+          <li aria-hidden className="contents">
+            <span
+              className={`absolute top-1.5 bottom-1.5 rounded-xl bg-bosque transition-[left,width,opacity] duration-500 ease-(--ease-spring) ${plate ? "opacity-100" : "opacity-0"}`}
+              style={{ left: plate?.left ?? 0, width: plate?.width ?? 0 }}
+            />
+          </li>
+          {SECCIONES.map(({ id, label }) => {
+            const on = currentId === id;
+            return (
+              <li key={id}>
+                <Link
+                  href={`/#${id}`}
+                  data-seccion={id}
+                  aria-current={on ? "location" : undefined}
+                  className={`relative block rounded-xl px-3.5 py-2 font-semibold whitespace-nowrap transition-colors duration-300 xl:px-5 ${on ? "text-white" : "text-texto hover:bg-crema hover:text-bosque"}`}
+                >
+                  {label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="hidden items-center justify-end gap-5 lg:flex">
+          <WalletChip profileHref={account?.profileHref ?? null} />
+          <Link href="/ong/registro" className={`${textLink} hidden xl:inline-flex`}>
+            Soy ONG
+            <span aria-hidden className={textLinkLine} />
+          </Link>
+          {account ? null : (
+            <>
+              <span aria-hidden className="hidden h-5 w-px bg-arena xl:block" />
+              <Link href="/ingresar?modo=ingresar" className={textLink}>
+                Ingresar
+                <span aria-hidden className={textLinkLine} />
+              </Link>
+            </>
+          )}
+          {account_}
         </div>
+
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -138,11 +188,41 @@ export function SiteNav({ account }: { account: Account }) {
       </nav>
 
       {open ? (
-        <div id="menu-movil" className="border-y border-arena bg-crema px-4 pt-2 pb-6 lg:hidden">
-          <ul className="flex flex-col text-lg">{links}</ul>
-          <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-arena pt-4">
-            <TestnetBadge />
-            {actions(true)}
+        <div id="menu-movil" className="anim-ventana border-y border-arena bg-crema px-4 pt-2 pb-6 lg:hidden">
+          <ul className="divide-y divide-arena/70">
+            {SECCIONES.map(({ id, label }) => {
+              const on = currentId === id;
+              return (
+                <li key={id}>
+                  <Link
+                    href={`/#${id}`}
+                    onClick={() => setOpen(false)}
+                    aria-current={on ? "location" : undefined}
+                    className={`flex items-center justify-between py-3.5 text-lg font-semibold transition-colors ${on ? "text-bosque" : "text-texto hover:text-bosque"}`}
+                  >
+                    {label}
+                    <span
+                      aria-hidden
+                      className={`h-2.5 w-2.5 rounded-full border-2 border-bosque ${on ? "bg-bosque" : "bg-transparent"}`}
+                    />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 border-t-2 border-texto/80 pt-4">
+            <WalletChip profileHref={account?.profileHref ?? null} />
+            <Link href="/ong/registro" className={textLink}>
+              Soy ONG
+              <span aria-hidden className={textLinkLine} />
+            </Link>
+            {account ? null : (
+              <Link href="/ingresar?modo=ingresar" className={textLink}>
+                Ingresar
+                <span aria-hidden className={textLinkLine} />
+              </Link>
+            )}
+            <span className="ml-auto">{account_}</span>
           </div>
         </div>
       ) : null}

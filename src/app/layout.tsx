@@ -28,7 +28,7 @@ const REVEAL_SCRIPT = `try{if(!matchMedia("(prefers-reduced-motion: reduce)").ma
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es" className={`${display.variable} ${sans.variable}`} suppressHydrationWarning>
+    <html lang="es" data-scroll-behavior="smooth" className={`${display.variable} ${sans.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: REVEAL_SCRIPT }} />
       </head>
