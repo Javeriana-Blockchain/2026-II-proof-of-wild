@@ -34,8 +34,11 @@
 
 html {
   scroll-behavior: smooth;
-  /* El menú es fijo: cada sección aterriza debajo de él. */
-  scroll-padding-top: 5.5rem;
+}
+
+/* El menú es fijo: cada sección (y cada ancla) aterriza debajo de él. */
+[id] {
+  scroll-margin-top: 5.5rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

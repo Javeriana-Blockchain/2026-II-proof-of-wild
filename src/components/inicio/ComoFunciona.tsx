@@ -133,7 +133,7 @@ export function ComoFunciona() {
           <Reveal as="section" variant="capa" delay={i}
             key={titulo}
             aria-label={titulo}
-            className="group/camino grid overflow-hidden rounded-[28px] bg-white ring-1 ring-arena/60 transition-shadow duration-300 hover:shadow-[0_22px_44px_-32px_rgb(31_42_34/0.6)] lg:grid-cols-[17rem_minmax(0,1fr)_auto]"
+            className="group/camino grid overflow-hidden rounded-[28px] bg-white ring-1 ring-arena/60 hover:ring-bosque/60 transition-shadow duration-300 lg:grid-cols-[17rem_minmax(0,1fr)_auto]"
           >
             <h3 className={`flex items-center gap-4 px-6 py-6 text-3xl lg:px-7 ${placa}`}>
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-crema text-bosque transition-transform duration-300 ease-(--ease-spring) group-hover/camino:-rotate-6">

@@ -43,6 +43,21 @@ export function SiteNav({ account }: { account: Account }) {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => setOpen(false), [pathname]);
+
+  // Al llegar desde otra página con /#seccion, la página principal entra después de la pantalla de carga y el
+  // navegador ya no encuentra el ancla: se espera a que la sección exista y se baja hasta ella.
+  useEffect(() => {
+    if (pathname !== "/" || !window.location.hash) return;
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const el = document.getElementById(id);
+      if (!el && ++tries < 40) return;
+      window.clearInterval(timer);
+      el?.scrollIntoView();
+    }, 75);
+    return () => window.clearInterval(timer);
+  }, [pathname]);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -99,7 +114,7 @@ export function SiteNav({ account }: { account: Account }) {
 
   return (
     <header
-      className={`sticky top-0 z-40 border-b bg-crema transition-[border-color,box-shadow] duration-300 ${scrolled ? "border-arena shadow-[0_8px_24px_-18px_rgb(31_42_34/0.5)]" : "border-transparent"}`}
+      className={`sticky top-0 z-40 border-b bg-crema transition-[border-color,box-shadow] duration-300 ${scrolled ? "border-arena" : "border-transparent"}`}
     >
       <nav aria-label="Principal" className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
         <Logo />
@@ -123,7 +138,7 @@ export function SiteNav({ account }: { account: Account }) {
       </nav>
 
       {open ? (
-        <div id="menu-movil" className="border-t border-arena bg-crema px-4 pt-2 pb-6 lg:hidden">
+        <div id="menu-movil" className="border-y border-arena bg-crema px-4 pt-2 pb-6 lg:hidden">
           <ul className="flex flex-col text-lg">{links}</ul>
           <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-arena pt-4">
             <TestnetBadge />

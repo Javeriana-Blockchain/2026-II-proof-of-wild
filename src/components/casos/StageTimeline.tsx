@@ -1,16 +1,16 @@
 import Image from "next/image";
 import { formatAmount } from "@/app/_lib/format";
 import { STAGE_STATUS_LABELS } from "@/app/_lib/labels";
-import { IconoCamara, IconoEtapa, stageKind } from "@/components/iconos";
+import { IconoEtapa, stageKind } from "@/components/iconos";
+import { Reveal } from "@/components/movimiento/Reveal";
 import { Chip, ExplorerLink, ProgressBar, ValidationChip } from "@/components/ui";
 import { fromStroops, toStroops } from "@/lib/amount";
 import type { PublicStage } from "@/modules/catalog";
-import { Reveal } from "@/components/movimiento/Reveal";
 
 /**
- * Línea de tiempo del tratamiento: una tarjeta por etapa con su foto, el nombre del proceso, su costo,
- * cuánto está cubierto, el chip de validación y los enlaces a la factura y al pago en Stellar Expert.
- * Si se pasa `myAllocations` (billetera conectada), cada etapa muestra también «Tu aporte».
+ * Línea de tiempo del tratamiento como un sendero vertical: las etapas que ya empezaron muestran su foto, lo cubierto,
+ * la factura y el pago en Stellar Expert y, si hay billetera conectada, «Tu aporte»; las pendientes quedan en una
+ * línea cada una, a la espera de que se cubra la anterior.
  */
 export function StageTimeline({
   stages,
@@ -20,86 +20,80 @@ export function StageTimeline({
   myAllocations?: Record<number, string>;
 }) {
   return (
-    <ol className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+    <ol className="relative space-y-4">
+      <span
+        aria-hidden
+        className="absolute top-8 bottom-8 left-[2.25rem] border-l-2 border-dashed border-bosque/35 sm:left-[3.75rem]"
+      />
       {stages.map((stage, i) => (
-        <Reveal as="li" variant="pop" delay={i} key={stage.position}>
-          <StageCard stage={stage} mine={myAllocations?.[stage.position]} />
+        <Reveal as="li" variant="pop" delay={i} key={stage.position} className="relative">
+          {stage.status === "pendiente" ? (
+            <PendingRow stage={stage} />
+          ) : (
+            <StageRow stage={stage} mine={myAllocations?.[stage.position]} />
+          )}
         </Reveal>
       ))}
     </ol>
   );
 }
 
-function StageCard({ stage, mine }: { stage: PublicStage; mine?: string }) {
+function StageRow({ stage, mine }: { stage: PublicStage; mine?: string }) {
   const missing = toStroops(stage.cost) - toStroops(stage.covered);
   const percent = Number((toStroops(stage.covered) * 100n) / (toStroops(stage.cost) || 1n));
   const expense = stage.expenses.at(-1);
   const milestone = stage.milestones.at(-1);
-  const pending = stage.status === "pendiente";
   const kind = stageKind(stage.name);
+  const here = stage.status === "en_curso";
 
   return (
     <article
-      className={`group/etapa flex h-full flex-col overflow-hidden rounded-[24px] bg-white ring-1 transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:shadow-[0_22px_44px_-30px_rgb(31_42_34/0.6)] ${stage.status === "en_curso" ? "ring-2 ring-bosque" : "ring-arena/70"}`}
+      className={`group/etapa grid gap-4 rounded-[24px] bg-white p-3 ring-1 transition-[transform,--tw-ring-color] duration-300 ease-(--ease-spring) hover:-translate-y-0.5 hover:ring-bosque/60 sm:grid-cols-[7.5rem_minmax(0,1fr)_auto] sm:gap-6 sm:p-4 ${here ? "ring-2 ring-bosque" : "ring-arena/70"}`}
     >
-      <div
-        className={`relative flex h-36 items-center justify-center gap-2 overflow-hidden text-sm ${pending ? "bg-crema text-secundario" : "bg-salvia text-texto"}`}
-      >
+      <div className="relative h-28 w-[4.5rem] overflow-hidden rounded-[18px] bg-salvia sm:w-full">
         {stage.photoUrl ? (
           <Image
             src={stage.photoUrl}
             alt={`Foto de la etapa ${stage.position}: ${stage.name}`}
             fill
-            sizes="(min-width: 1280px) 22vw, (min-width: 640px) 45vw, 100vw"
-            className="object-cover transition-transform duration-700 ease-(--ease-out-expo) group-hover/etapa:scale-[1.06]"
+            sizes="(min-width: 640px) 120px, 72px"
+            className="object-cover transition-transform duration-700 ease-(--ease-out-expo) group-hover/etapa:scale-[1.08]"
           />
-        ) : pending ? (
-          <span className="flex flex-col items-center gap-2 px-4 text-center">
-            <IconoEtapa kind={kind} className="h-7 w-7 opacity-60" />
-            La foto llega cuando empiece la etapa
-          </span>
         ) : (
-          <span className="flex items-center gap-2">
-            <IconoCamara className="h-5 w-5" /> Foto de la etapa
+          <span className="flex h-full items-center justify-center text-texto">
+            <IconoEtapa kind={kind} className="h-7 w-7" />
           </span>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-5">
-        <div className="flex items-center justify-between gap-2">
-          <span className="rotulo flex items-center gap-1.5 text-secundario">
-            <IconoEtapa kind={kind} className="h-3.5 w-3.5" />
-            Etapa {stage.position}
-          </span>
-          <Chip tone={stage.status === "completada" ? "logro" : stage.status === "en_curso" ? "etapa" : "borde"}>
-            {STAGE_STATUS_LABELS[stage.status]}
-          </Chip>
+      <div className="min-w-0 space-y-3 sm:py-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h3 className="font-display text-2xl leading-tight font-semibold">
+            <span className="cifras text-bosque">{stage.position}</span> · {stage.name}
+          </h3>
+          <Chip tone={stage.status === "completada" ? "logro" : "etapa"}>{STAGE_STATUS_LABELS[stage.status]}</Chip>
         </div>
-        <h3 className="font-display text-2xl leading-tight font-semibold">{stage.name}</h3>
+        {stage.covers ? <p className="text-secundario">{stage.covers}</p> : null}
 
-        <div className="space-y-1.5">
+        <div className="max-w-md space-y-1.5">
           <p className="cifras text-sm">
             <strong className="text-base">{formatAmount(stage.covered, "")}</strong>de {formatAmount(stage.cost)}
+            {missing > 0n ? <span className="text-secundario"> · faltan {formatAmount(fromStroops(missing))}</span> : null}
           </p>
           <ProgressBar percent={percent} label={`Cubierto de la etapa ${stage.position}`} />
         </div>
 
         {expense ? (
-          <div className="space-y-2">
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <ValidationChip level={expense.validationLevel} />
-            <p className="flex flex-wrap gap-4 text-sm">
-              <a href={expense.invoiceUrl} target="_blank" rel="noreferrer" className="enlace">
-                Factura
-              </a>
-              <ExplorerLink href={expense.txUrl} />
-            </p>
-          </div>
-        ) : stage.waitingForPrevious ? (
-          <p className="mt-auto text-sm text-secundario">Empieza a cubrirse cuando la etapa {stage.position - 1} esté completa.</p>
+            <a href={expense.invoiceUrl} target="_blank" rel="noreferrer" className="enlace">
+              Factura
+            </a>
+            <ExplorerLink href={expense.txUrl} />
+          </p>
         ) : (
           <p className="text-sm text-secundario">
-            {missing > 0n ? `Faltan ${formatAmount(fromStroops(missing))}. ` : "Etapa cubierta. "}
-            Todavía no tiene gastos.
+            {missing > 0n ? "Todavía no tiene gastos." : "Etapa cubierta. Todavía no tiene gastos."}
           </p>
         )}
 
@@ -109,14 +103,41 @@ function StageCard({ stage, mine }: { stage: PublicStage; mine?: string }) {
             <ExplorerLink href={milestone.txUrl}>Ver en Stellar Expert</ExplorerLink>
           </p>
         ) : null}
-
-        {mine !== undefined ? (
-          <div className="mt-auto flex items-center justify-between rounded-xl bg-salvia px-4 py-3">
-            <span className="font-semibold">Tu aporte</span>
-            <span className="cifras font-display text-2xl font-bold">{formatAmount(mine)}</span>
-          </div>
-        ) : null}
       </div>
+
+      {mine !== undefined ? (
+        <div className="flex items-center justify-between gap-4 self-center rounded-[18px] bg-salvia px-5 py-4 sm:flex-col sm:items-end sm:justify-center">
+          <span className="font-semibold">Tu aporte</span>
+          <span className="cifras font-display text-3xl font-bold">{formatAmount(mine)}</span>
+        </div>
+      ) : null}
     </article>
+  );
+}
+
+/** Etapa pendiente: una sola línea del sendero, con su costo y la espera. */
+function PendingRow({ stage }: { stage: PublicStage }) {
+  const kind = stageKind(stage.name);
+  return (
+    <div className="flex items-center gap-4 rounded-[20px] px-3 py-2 transition-colors duration-200 hover:bg-white/60 sm:gap-6 sm:px-4">
+      <span className="flex h-12 w-[4.5rem] shrink-0 items-center justify-center sm:w-[7.5rem]">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-dashed border-arena bg-crema text-secundario">
+          <IconoEtapa kind={kind} className="h-5 w-5" />
+        </span>
+      </span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h3 className="font-display text-xl font-semibold text-secundario">
+          <span className="cifras">{stage.position}</span> · {stage.name}
+        </h3>
+        <span className="cifras text-sm text-secundario">
+          <strong className="text-texto">{formatAmount(stage.covered, "")}</strong>de {formatAmount(stage.cost)}
+        </span>
+        <span className="text-sm text-secundario">
+          {stage.waitingForPrevious
+            ? `Empieza a cubrirse cuando la etapa ${stage.position - 1} esté completa.`
+            : STAGE_STATUS_LABELS[stage.status]}
+        </span>
+      </div>
+    </div>
   );
 }

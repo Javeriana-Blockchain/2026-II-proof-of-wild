@@ -10,11 +10,11 @@ import { Reveal } from "@/components/movimiento/Reveal";
  */
 const BUTTONS = {
   primario:
-    "bg-bosque text-white hover:bg-profundo hover:shadow-[0_10px_22px_-10px_rgb(44_79_51/0.65)] focus-visible:outline-bosque",
+    "bg-bosque text-white hover:bg-profundo focus-visible:outline-bosque",
   secundario:
-    "border-2 border-bosque bg-white text-bosque hover:bg-bosque hover:text-white hover:shadow-[0_10px_22px_-12px_rgb(44_79_51/0.55)]",
+    "border-2 border-bosque bg-white text-bosque hover:bg-bosque hover:text-white",
   arena:
-    "bg-arena text-texto hover:bg-[#cfb684] hover:shadow-[0_10px_22px_-12px_rgb(31_42_34/0.45)] focus-visible:outline-crema",
+    "bg-arena text-texto hover:bg-[#cfb684] focus-visible:outline-crema",
   contorno: "border-2 border-white/70 text-white hover:border-white hover:bg-white/10 focus-visible:outline-crema",
 } as const;
 

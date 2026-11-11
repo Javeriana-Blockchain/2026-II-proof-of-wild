@@ -58,10 +58,12 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
         </Link>
 
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:items-start">
-          <Reveal as="figure" variant="capa" className="relative mr-6 mb-6">
-            <span aria-hidden className="absolute -right-3 -bottom-3 h-full w-full rounded-[32px] bg-arena" />
-            <span aria-hidden className="absolute -right-6 -bottom-6 h-full w-full rounded-[32px] bg-salvia" />
-            <div className="relative aspect-[4/3] overflow-hidden rounded-[32px] bg-salvia ring-4 ring-white">
+          <Reveal as="figure" variant="capa" className="relative m-4">
+            {/* Paspartú de curvas de nivel: la foto descansa sobre una hoja del mapa. */}
+            <span aria-hidden className="absolute -inset-4 overflow-hidden rounded-[40px]">
+              <ContourField variant="papel" seed={19} className="h-full w-full" />
+            </span>
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[30px] bg-salvia">
               {detail.photoUrl ? (
                 <Image
                   src={detail.photoUrl}

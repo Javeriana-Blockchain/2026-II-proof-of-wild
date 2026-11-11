@@ -5,7 +5,8 @@ import { notFound } from "next/navigation";
 import { formatAmount, formatDate } from "@/app/_lib/format";
 import { ContourField } from "@/components/mapa/ContourField";
 import { Reveal } from "@/components/movimiento/Reveal";
-import { Chip, EmptyState, ExplorerLink, ProgressBar } from "@/components/ui";
+import { RouteMap } from "@/components/mapa/RouteMap";
+import { Chip, EmptyState, ExplorerLink } from "@/components/ui";
 import { explorerAccountUrl, explorerTxUrl } from "@/lib/explorer";
 import { shortAccount } from "@/lib/stellar-account";
 import { getExplorerEnv } from "@/platform/config/env";
@@ -70,7 +71,7 @@ export default async function OngProfilePage({ params }: Props) {
             {ngo.foundedYear ? ` Trabajamos desde ${ngo.foundedYear}.` : ""}
           </p>
         </div>
-        <div className="space-y-1 rounded-[20px] border border-white/25 bg-profundo p-5">
+        <div className="space-y-1 border-t border-white/20 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
           <p className="rotulo text-salvia">Cuenta en Stellar</p>
           <p className="font-mono">{shortAccount(ngo.stellarAccount)}</p>
           <a
@@ -84,19 +85,18 @@ export default async function OngProfilePage({ params }: Props) {
         </div>
       </Reveal>
 
-      <dl className="grid grid-cols-2 gap-4 md:grid-cols-5">
+      <Reveal
+        as="dl"
+        variant="sube"
+        className="grid grid-cols-2 border-y-2 border-texto/80 md:grid-cols-5"
+      >
         {indicators.map(([label, value], i) => (
-          <Reveal
-            key={label}
-            variant="pop"
-            delay={i}
-            className={`rounded-[22px] p-5 ${i === 4 ? "bg-bosque text-white" : "bg-white ring-1 ring-arena/70"}`}
-          >
-            <dt className={`rotulo ${i === 4 ? "text-white/80" : "text-secundario"}`}>{label}</dt>
-            <dd className="cifras mt-1 font-display text-3xl font-bold">{value}</dd>
-          </Reveal>
+          <div key={label} className={`border-arena px-5 py-4 ${i % 2 === 1 ? "border-l" : ""} ${i > 0 ? "md:border-l" : ""} ${i > 1 ? "border-t md:border-t-0" : ""}`}>
+            <dt className="rotulo text-secundario">{label}</dt>
+            <dd className={`cifras mt-1 font-display text-3xl font-bold ${i === 4 ? "text-bosque" : ""}`}>{value}</dd>
+          </div>
         ))}
-      </dl>
+      </Reveal>
 
       <div className="grid gap-6 lg:grid-cols-[2.3fr_1fr]">
         <section aria-labelledby="casos-ong" className="space-y-4">
@@ -112,7 +112,7 @@ export default async function OngProfilePage({ params }: Props) {
               variant="pop"
               delay={i}
               key={c.code}
-              className="group/caso relative grid overflow-hidden rounded-[24px] bg-white ring-1 ring-arena/70 transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:shadow-[0_22px_44px_-30px_rgb(31_42_34/0.6)] sm:grid-cols-[12rem_1fr]"
+              className="group/caso relative grid overflow-hidden rounded-[24px] bg-white ring-1 ring-arena/70 hover:ring-bosque/60 transition-[transform,box-shadow,--tw-ring-color] duration-300 ease-(--ease-spring) hover:-translate-y-1 sm:grid-cols-[12rem_1fr]"
             >
               <div className="relative min-h-36 overflow-hidden bg-salvia">
                 {c.photoUrl ? (
@@ -125,7 +125,7 @@ export default async function OngProfilePage({ params }: Props) {
                   />
                 ) : null}
               </div>
-              <div className="space-y-3 p-5">
+              <div className="space-y-3 p-5 sm:p-6">
                 <p className="flex flex-wrap items-center gap-3">
                   <span className="font-display text-2xl font-semibold">{c.commonName ?? "Especie reservada"}</span>
                   <Chip tone={c.chip.tone === "logro" ? "logro" : "etapa"} className="text-xs">
@@ -133,13 +133,17 @@ export default async function OngProfilePage({ params }: Props) {
                   </Chip>
                   <span className="text-sm text-secundario">{c.code}</span>
                 </p>
-                <div className="flex items-center gap-3">
-                  <ProgressBar percent={c.progressPercent} className="max-w-xs" />
-                  <span className="cifras text-sm">
-                    {formatAmount(c.raised, "")}de {formatAmount(c.goal)}
-                    {c.progressPercent >= 100 ? " · meta cumplida" : ""}
-                  </span>
-                </div>
+                <RouteMap
+                  stages={c.route}
+                  size="compacto"
+                  showAmounts={false}
+                  label={`Ruta del tratamiento de ${c.commonName ?? c.code}`}
+                  className="pt-3"
+                />
+                <p className="cifras text-sm">
+                  <strong>{formatAmount(c.raised, "")}</strong>de {formatAmount(c.goal)}
+                  {c.progressPercent >= 100 ? " · meta cumplida" : " recaudados"}
+                </p>
                 {c.recovered && c.outcomeDate ? (
                   <p className="text-sm text-secundario">
                     {c.outcomeLabel} el {formatDate(c.outcomeDate)}
@@ -154,7 +158,7 @@ export default async function OngProfilePage({ params }: Props) {
         </section>
 
         <aside className="space-y-6">
-          <section className="space-y-3 rounded-[24px] bg-white p-6 ring-1 ring-arena/70">
+          <section className="space-y-3 border-t-2 border-texto/80 pt-4">
             <h2 className="text-2xl">Voluntariados</h2>
             {volunteering.filter((v) => v.ngo.slug === ngo.slug).length === 0 ? (
               <p className="text-secundario">Por ahora no tiene jornadas abiertas.</p>
@@ -172,7 +176,7 @@ export default async function OngProfilePage({ params }: Props) {
             </Link>
           </section>
 
-          <section className="space-y-3 rounded-[24px] bg-white p-6 ring-1 ring-arena/70">
+          <section className="space-y-3 border-t-2 border-texto/80 pt-4">
             <h2 className="text-2xl">Gastos recientes</h2>
             {ngo.recentExpenses.length === 0 ? (
               <p className="text-secundario">Todavía no hay gastos registrados.</p>

@@ -50,7 +50,7 @@ export function RouteMap({
   const lineTop = big ? "top-[4px]" : "top-[-2px]";
 
   return (
-    <Reveal variant="sube" className={`relative ${className}`}>
+    <Reveal variant="sube" className={`relative ${current !== -1 ? "sm:mt-7" : ""} ${className}`}>
       <svg
         viewBox="0 0 1000 40"
         preserveAspectRatio="none"

@@ -14,7 +14,7 @@ export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: 
   const name = item.commonName ?? "Especie reservada";
   return (
     <Reveal as="article" variant="capa" delay={delay}
-      className="group/caso grid overflow-hidden rounded-[28px] bg-white shadow-[0_18px_40px_-30px_rgb(31_42_34/0.55)] ring-1 ring-arena/60 transition-[box-shadow,transform] duration-300 ease-(--ease-out-expo) hover:-translate-y-1 hover:shadow-[0_26px_50px_-30px_rgb(31_42_34/0.65)] lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
+      className="group/caso grid overflow-hidden rounded-[28px] bg-white ring-1 ring-arena/60 hover:ring-bosque/60 transition-[box-shadow,transform] duration-300 ease-(--ease-out-expo) hover:-translate-y-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
     >
       <Link
         href={`/casos/${item.code}`}
@@ -94,7 +94,7 @@ export function RecoveredCard({ item, delay = 0 }: { item: PublicCaseSummary; de
   const name = item.commonName ?? "Especie reservada";
   return (
     <Reveal as="article" variant="pop" delay={delay}
-      className="group/rec relative overflow-hidden rounded-[24px] bg-white ring-1 ring-arena/60 transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:shadow-[0_20px_40px_-28px_rgb(31_42_34/0.6)]"
+      className="group/rec relative overflow-hidden rounded-[24px] bg-white ring-1 ring-arena/60 hover:ring-bosque/60 transition-[transform,box-shadow,--tw-ring-color] duration-300 ease-(--ease-spring) hover:-translate-y-1"
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-salvia">
         {item.photoUrl ? (

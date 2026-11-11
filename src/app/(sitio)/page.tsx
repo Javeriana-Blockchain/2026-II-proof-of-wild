@@ -3,6 +3,8 @@ import { CasosSeccion } from "@/components/inicio/CasosSeccion";
 import { ComoFunciona } from "@/components/inicio/ComoFunciona";
 import { Portada } from "@/components/inicio/Portada";
 import { VoluntariadosSeccion } from "@/components/inicio/VoluntariadosSeccion";
+import { explorerContractUrl } from "@/lib/explorer";
+import { getExplorerEnv } from "@/platform/config/env";
 import { getCatalogService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
 import { enrollmentDefaults, listVolunteerings } from "@/platform/db/repositories/volunteering";
@@ -31,9 +33,14 @@ export default async function InicioPage({ searchParams }: Props) {
       ? await enrollmentDefaults(db, session.userId)
       : { fullName: "", email: "", phone: "" };
 
+  // En la portada, el caso en tratamiento que más avanza: su tramo recorrido y sus etapas cubiertas se ven de una vez.
+  const destacado = cases.filter((c) => !c.recovered).sort((a, b) => b.progressPercent - a.progressPercent)[0] ?? null;
+  const contractId = process.env.CONTRACT_ID;
+  const contractUrl = contractId ? explorerContractUrl(getExplorerEnv().EXPLORER_BASE_URL, contractId) : null;
+
   return (
     <main>
-      <Portada destacado={cases.find((c) => !c.recovered) ?? null} />
+      <Portada destacado={destacado} contractUrl={contractUrl} />
       <ComoFunciona />
       <CasosSeccion cases={cases} />
       <VoluntariadosSeccion list={volunteerings} />

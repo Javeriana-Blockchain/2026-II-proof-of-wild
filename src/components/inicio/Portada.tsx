@@ -32,7 +32,7 @@ const CAMINOS = [
  * Primera pantalla: la promesa, los tres caminos y, abajo a todo el ancho, la ruta viva de un caso en tratamiento
  * con el marcador «Aquí va» en la etapa que se está cubriendo.
  */
-export function Portada({ destacado }: { destacado: PublicCaseSummary | null }) {
+export function Portada({ destacado, contractUrl }: { destacado: PublicCaseSummary | null; contractUrl: string | null }) {
   return (
     <section id="inicio" aria-labelledby="titulo-inicio" className="relative isolate overflow-hidden bg-profundo text-white">
       <ContourField variant="noche" seed={3} className="absolute inset-0 -z-10 h-full w-full" />
@@ -49,27 +49,35 @@ export function Portada({ destacado }: { destacado: PublicCaseSummary | null }) 
             Todo queda registrado en Stellar y lo puedes verificar.
           </Reveal>
 
-          <ul className="mt-8 grid gap-3 sm:grid-cols-3">
-            {CAMINOS.map((c, i) => (
-              <Reveal as="li" variant="pop" delay={2 + i}
+          <Reveal
+            as="ul"
+            variant="pop"
+            delay={2}
+            className="mt-8 divide-y divide-white/15 rounded-[24px] border border-white/20 bg-profundo"
+          >
+            {CAMINOS.map((c) => (
+              <li
                 key={c.titulo}
-                className="flex flex-col rounded-2xl border border-white/20 bg-profundo p-4 transition-colors duration-300 hover:border-arena/70"
+                className="grid items-center gap-3 px-5 py-4 transition-colors duration-300 hover:bg-bosque/40 sm:grid-cols-[minmax(0,1fr)_15rem]"
               >
-                <h2 className="font-sans text-base font-bold">{c.titulo}</h2>
-                <p className="mt-1 flex-1 text-sm text-white/85">{c.texto}</p>
-                <Link href={c.href} className={buttonClass("arena", "mt-4 w-full px-3 text-center text-sm")}>
+                <div>
+                  <h2 className="font-sans text-base font-bold">{c.titulo}</h2>
+                  <p className="text-sm text-white/85">{c.texto}</p>
+                </div>
+                <Link href={c.href} className={buttonClass("arena", "w-full px-3 py-2.5 text-center text-sm")}>
                   {c.accion}
                 </Link>
-              </Reveal>
+              </li>
             ))}
-          </ul>
+          </Reveal>
         </div>
 
-        <Reveal as="figure" variant="capa" delay={1} className="relative mx-auto w-full max-w-md lg:mr-6 lg:max-w-none">
-          {/* Capas de papel recortado detrás de la foto: profundidad solo por superposición. */}
-          <span aria-hidden className="absolute -right-3 -bottom-3 h-full w-full rounded-[32px] bg-arena" />
-          <span aria-hidden className="absolute -right-6 -bottom-6 h-full w-full rounded-[32px] bg-salvia/80" />
-          <div className="relative aspect-[4/3] overflow-hidden rounded-[32px] ring-4 ring-crema sm:aspect-square lg:aspect-auto lg:h-full lg:min-h-[24rem]">
+        <Reveal as="figure" variant="capa" delay={1} className="relative mx-auto my-4 w-full max-w-md lg:my-2 lg:mr-4 lg:max-w-none">
+          {/* Paspartú de curvas de nivel: la foto descansa sobre una hoja del mapa, profundidad solo por capas. */}
+          <span aria-hidden className="absolute -inset-3 overflow-hidden rounded-[40px] sm:-inset-4">
+            <ContourField variant="papel" seed={17} className="h-full w-full" />
+          </span>
+          <div className="relative aspect-[4/3] overflow-hidden rounded-[30px] sm:aspect-square lg:aspect-auto lg:h-full lg:min-h-[24rem]">
             <Image
               src="/fotos/portada-oso-de-anteojos.webp"
               alt="Dos osos de anteojos en un pastizal de páramo"
@@ -99,9 +107,28 @@ export function Portada({ destacado }: { destacado: PublicCaseSummary | null }) 
                   {formatAmount(destacado.raised, "")} de {formatAmount(destacado.goal)}
                 </span>
               </p>
-              <Link href={`/casos/${destacado.code}`} className="inline-flex items-center gap-1 pt-1 font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena">
-                Ver su recuperación
-              </Link>
+              <p className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
+                <Link
+                  href={`/casos/${destacado.code}`}
+                  className="font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena"
+                >
+                  Ver su recuperación
+                </Link>
+                {contractUrl ? (
+                  <a
+                    href={contractUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-white/90 underline decoration-white/30 underline-offset-4 transition-[color,text-decoration-color] hover:text-white hover:decoration-white"
+                  >
+                    El contrato en Stellar Expert
+                    <svg viewBox="0 0 24 24" aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M7 17 17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <span className="sr-only">(abre en otra pestaña)</span>
+                  </a>
+                ) : null}
+              </p>
             </Reveal>
             <RouteMap
               stages={destacado.route}

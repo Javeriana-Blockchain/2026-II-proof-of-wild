@@ -6,3 +6,7 @@ export function explorerTxUrl(explorerBaseUrl: string, txHash: string): string {
 export function explorerAccountUrl(explorerBaseUrl: string, account: string): string {
   return `${explorerBaseUrl.replace(/\/+$/, "")}/account/${account}`;
 }
+
+export function explorerContractUrl(explorerBaseUrl: string, contractId: string): string {
+  return `${explorerBaseUrl.replace(/\/+$/, "")}/contract/${contractId}`;
+}

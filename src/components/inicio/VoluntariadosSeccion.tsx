@@ -70,7 +70,7 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
                 return (
                   <Reveal as="article" variant="pop" delay={i}
                     key={v.id}
-                    className="group/jornada grid overflow-hidden rounded-[28px] bg-white text-texto transition-[transform,box-shadow] duration-300 ease-(--ease-spring) hover:-translate-y-1 hover:shadow-[0_26px_50px_-30px_rgb(0_0_0/0.7)] sm:grid-cols-[2fr_3fr]"
+                    className="group/jornada grid overflow-hidden rounded-[28px] bg-white text-texto transition-[transform,box-shadow,--tw-ring-color] duration-300 ease-(--ease-spring) hover:-translate-y-1 sm:grid-cols-[2fr_3fr]"
                   >
                     <div className="relative min-h-56 overflow-hidden bg-salvia">
                       {v.photoPath ? (
