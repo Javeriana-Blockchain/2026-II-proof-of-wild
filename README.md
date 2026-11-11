@@ -94,6 +94,10 @@ Toda función que mueve dinero o escribe datos exige la firma de quien la llama.
 | Portal de la ONG con registrar gasto e hito | Construido; ventanas probadas en el navegador |
 | Aporte, gasto e hito de punta a punta en testnet (`red:probar`) | 27 comprobaciones pasan |
 
+## Diseño
+
+El frontend sigue el mundo «Mapa de liberación»: cada caso es una ruta sobre una hoja topográfica, con un punto por etapa y el marcador «Aquí va» en la que se está cubriendo. La página principal reúne Inicio, Cómo funciona, Casos y Voluntariados, y el menú baja a cada sección. Los tokens, la tipografía y las reglas están en [DESIGN.md](DESIGN.md); lo que es verdad del producto, en [PRODUCT.md](PRODUCT.md).
+
 ## Estructura
 
 ```text
