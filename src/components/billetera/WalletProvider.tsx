@@ -11,8 +11,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 type Kit = typeof import("@creit.tech/stellar-wallets-kit/sdk").StellarWalletsKit;
 
 const STORAGE_KEY = "pow-billetera";
-/** Billeteras de Stellar que se ofrecen (Varial es el nuevo nombre de Freighter). */
-const WALLETS = new Set(["varial", "xbull", "albedo", "lobstr", "hana", "rabet"]);
+/**
+ * Billeteras de Stellar que se ofrecen, en este orden. La librería renombró Freighter como «Varial» (su módulo usa
+ * la extensión de Freighter): en la lista se muestra como «Freighter (Varial)» para que se reconozca.
+ */
+const WALLET_ORDER = ["varial", "albedo", "xbull", "lobstr", "hana", "rabet"];
+const WALLETS = new Set(WALLET_ORDER);
 let kitPromise: Promise<Kit> | null = null;
 
 function loadKit(selectedWalletId?: string): Promise<Kit> {
@@ -22,8 +26,14 @@ function loadKit(selectedWalletId?: string): Promise<Kit> {
       import("@creit.tech/stellar-wallets-kit/modules/utils"),
       import("@creit.tech/stellar-wallets-kit/types"),
     ]);
+    const modules = defaultModules({ filterBy: (m) => WALLETS.has(m.productId) }).sort(
+      (a, b) => WALLET_ORDER.indexOf(a.productId) - WALLET_ORDER.indexOf(b.productId),
+    );
+    for (const module of modules) {
+      if (module.productId === "varial") (module as { productName: string }).productName = "Freighter (Varial)";
+    }
     StellarWalletsKit.init({
-      modules: defaultModules({ filterBy: (m) => WALLETS.has(m.productId) }),
+      modules,
       network: Networks.TESTNET,
       selectedWalletId,
     });
