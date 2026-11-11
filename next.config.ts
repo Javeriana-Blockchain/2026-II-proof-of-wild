@@ -4,6 +4,23 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // sharp es un paquete nativo: se carga desde node_modules, no se empaqueta.
   serverExternalPackages: ["sharp"],
+  /**
+   * Casos, Cómo funciona y Voluntariados son secciones de la página principal. Los enlaces viejos redirigen en el
+   * servidor, así el navegador baja a la sección; `?inscribirme=<id>` sigue abriendo la inscripción a una jornada.
+   */
+  async redirects() {
+    return [
+      { source: "/casos", destination: "/#casos", permanent: false },
+      { source: "/como-funciona", destination: "/#como-funciona", permanent: false },
+      {
+        source: "/voluntariados",
+        has: [{ type: "query", key: "inscribirme", value: "(?<id>[0-9a-fA-F-]{36})" }],
+        destination: "/?inscribirme=:id#voluntariados",
+        permanent: false,
+      },
+      { source: "/voluntariados", destination: "/#voluntariados", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;
