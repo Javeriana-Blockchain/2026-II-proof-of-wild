@@ -113,12 +113,12 @@ export function SiteNav({ account }: { account: Account }) {
   }, [measure]);
 
   const account_ = account ? (
-    <Link href={account.href} className={buttonClass("primario", "py-2.5")}>
-      <span aria-hidden className="h-2 w-2 animate-brillo rounded-full bg-salvia" />
+    <Link href={account.href} className={buttonClass("primario", "shrink-0 py-2.5 whitespace-nowrap")}>
+      <span aria-hidden className="h-2 w-2 shrink-0 animate-brillo rounded-full bg-salvia" />
       {account.label}
     </Link>
   ) : (
-    <Link href="/ingresar" className={buttonClass("primario", "py-2.5")}>
+    <Link href="/ingresar" className={buttonClass("primario", "shrink-0 py-2.5 whitespace-nowrap")}>
       Crear cuenta
     </Link>
   );
@@ -129,7 +129,7 @@ export function SiteNav({ account }: { account: Account }) {
     >
       <nav
         aria-label="Principal"
-        className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-8 lg:grid lg:grid-cols-[1fr_auto_1fr]"
+        className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-8 lg:grid lg:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]"
       >
         <Logo testnet />
 
@@ -157,8 +157,11 @@ export function SiteNav({ account }: { account: Account }) {
           })}
         </ul>
 
-        <div className="hidden items-center justify-end gap-5 lg:flex">
-          <WalletChip profileHref={account?.profileHref ?? null} />
+        <div className="hidden shrink-0 items-center justify-end gap-5 lg:flex">
+          {/* En pantallas de portátil la billetera va en el menú del perfil; se muestra aquí desde 1280 px. */}
+          <span className="hidden xl:contents">
+            <WalletChip profileHref={account?.profileHref ?? null} />
+          </span>
           <Link href="/ong/registro" className={`${textLink} hidden xl:inline-flex`}>
             Soy ONG
             <span aria-hidden className={textLinkLine} />
