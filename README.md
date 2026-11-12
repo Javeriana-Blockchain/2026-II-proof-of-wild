@@ -13,6 +13,7 @@ El MVP se presenta el 13 de noviembre de 2026. Contexto, requisitos y decisiones
 | Contrato | Rust y `soroban-sdk` 27 en [`contracts/proof-of-wild`](contracts/proof-of-wild) |
 | Stellar | `@stellar/stellar-sdk` (RPC de Soroban y Horizon) y Stellar Wallets Kit (Freighter, Albedo, xBull, Lobstr, Hana, Rabet) |
 | Cuentas | SRP-6a con `secure-remote-password`: la base de datos nunca ve la contraseña |
+| Biometría | `@vladmandic/human` en el navegador: detección del rostro, prueba de vida y comparación con el documento |
 | Otros | zod, sharp (borra el EXIF de las fotos), Vitest |
 | Despliegue | Vercel (aplicación) y Neon (PostgreSQL con las evidencias); `main` es producción |
 
@@ -86,6 +87,19 @@ Toda función que mueve dinero o escribe datos exige la firma de quien la llama.
 
 Apadrinar exige una cuenta de persona con la sesión iniciada: el servidor rechaza preparar o enviar un aporte sin ella (401) o con una cuenta de ONG o de administrador (403). Quien pulsa «Apadrinar este caso» sin cuenta ve una invitación con el animal, su ruta, los tres pasos y la insignia; al crear la cuenta o ingresar vuelve al caso con la ventana de apadrinar abierta y un saludo. La billetera queda ligada al perfil con el primer aporte.
 
+## Verificación de identidad (KYC por niveles)
+
+Con la cuenta se apadrina hasta 50 USDC. Para aportes mayores, el servidor pide identidad verificada (403 `verification_required`) y la ventana de apadrinar lleva a `/cuenta/verificar`, que vuelve al caso con el monto elegido. La verificación tiene cuatro pasos:
+
+1. Documento: cédula o pasaporte, con foto desde la cámara o subida. Se detecta y recorta el rostro del documento.
+2. Prueba de vida: mirar de frente, parpadear y girar la cabeza, con detección de rostro real y vivo.
+3. Comparación del rostro de la cámara con el del documento (desde 50 % de coincidencia).
+4. Consulta al registro, **simulada**: aprueba cualquier documento con formato válido salvo los que terminan en `0000`, que «no aparecen», para mostrar el rechazo.
+
+La biometría corre en el navegador con `@vladmandic/human` (modelos en `public/modelos/human`); las imágenes nunca salen del equipo. Se guarda solo el resultado: el HMAC del documento (un documento verifica una sola cuenta), sus últimos 4 dígitos, el método, la coincidencia, el proveedor y la autorización de datos sensibles. Desde «Mi perfil» se puede ver o borrar. Si la cámara falla en la demo, «Simular la verificación (demo)» la completa sin biometría y queda marcada como simulada. El perfil de cada ONG muestra su verificación (registro legal, representante legal y cuenta Stellar), también simulada.
+
+En producción, el registro simulado se reemplaza por un proveedor (Truora, Didit, MetaMap) que implemente el puerto `IdentityProvider`, y la biometría la hace ese proveedor.
+
 ## Estado del MVP
 
 | Parte | Estado |
@@ -99,6 +113,7 @@ Apadrinar exige una cuenta de persona con la sesión iniciada: el servidor recha
 | Voluntariados con su inscripción | Construido y probado en el navegador |
 | Ventana de apadrinar con la billetera y comprobante; «Tu aporte» por etapa | Construido; preparar y su vista previa probados con el contrato real |
 | Apadrinar exige cuenta de persona, con invitación y regreso al caso | Construido; 401, 403 y el regreso probados contra el servidor |
+| Verificación de identidad por niveles y ONG verificada | Construida; registro y verificación de ONG simulados. Probados en el navegador el flujo simulado, el límite de 50 USDC y la detección de rostros; la prueba con cámara queda para el ensayo |
 | Perfil del donante con su insignia «Huella verificada» y página pública | Construido y probado en el navegador |
 | Portal de la ONG con sus casos, saldos y registrar gasto e hito | Construido; ventanas probadas en el navegador |
 | Aporte, gasto e hito de punta a punta en testnet (`red:probar`) | 27 comprobaciones pasan |
@@ -114,16 +129,16 @@ contracts/proof-of-wild/  Contrato Soroban (Rust) y sus pruebas
 scripts/                  Preparación de la red y de las imágenes, y prueba de punta a punta
 src/
   app/            Presentación (Next.js): páginas, layouts, acciones y rutas API
-  components/     Interfaz: inicio (secciones de la página principal), casos, huella (perfil e insignia),
+  components/     Interfaz: inicio (secciones de la página principal), casos, huella (perfil e insignia), identidad (verificación con cámara),
                   mapa (ruta y curvas de nivel), movimiento (aparición al hacer scroll), estados (carga y
                   «no encontrado»), sitio (encabezado, menú y pie), billetera
-  modules/        Dominio y aplicación por capacidad (cases, catalog, contributions, records, shared)
+  modules/        Dominio y aplicación por capacidad (cases, catalog, contributions, identity, records, shared)
   ports/          Puertos que el dominio necesita del exterior
-  platform/       Adaptadores: db, stellar (contrato y plan B clásico), storage, auth, config y container.ts
+  platform/       Adaptadores: db, stellar (contrato y plan B clásico), storage, auth, identity (registro simulado), config y container.ts
   lib/            Utilidades sin lógica de negocio
 public/           Fotos de la demo (sin EXIF), fotos por etapa y logo
 drizzle/          Migraciones SQL
-docs/arquitectura/  Contexto, drivers y arquitectura (ADR-01 a ADR-20)
+docs/arquitectura/  Contexto, drivers y arquitectura (ADR-01 a ADR-21)
 tests/            Pruebas de dominio, adaptadores e integración
 ```
 

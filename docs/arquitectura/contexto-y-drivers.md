@@ -67,6 +67,8 @@ Prioridad según el brief: **M** entra en el MVP; **D** queda para después.
 | RF-GAS-01 | Registrar gasto: etapa, proveedor, monto y factura; el contrato paga al proveedor y guarda el hash de la factura | M | Construido |
 | RF-HIT-01 | Registrar hito: etapa, descripción y foto; el hash queda en el contrato | M | Construido |
 | RF-VOL-01 | Voluntariados de las ONG con inscripción de personas | M | Construido |
+| RF-KYC-01 | Verificación de identidad de la persona por niveles: documento, prueba de vida y comparación del rostro; exigida para aportes de más de 50 USDC | Puntos adicionales | Construido; biometría real en el navegador, registro simulado (ADR-21) |
+| RF-KYB-01 | Verificación de la ONG (registro legal, representante legal y cuenta Stellar) visible en su perfil | Puntos adicionales | Simulada en la demo (ADR-21) |
 | RF-VAL-01 | Validar un gasto o un hito con la firma de un validador distinto de quien lo registró | M | Diferido a la etapa 2; el MVP muestra el nivel de validación |
 | RF-CAS-01 | Registrar caso desde el portal | D | Fuera del MVP |
 | RF-CAS-02 | Cerrar caso: destino final y manejo del saldo | D | Fuera del MVP |
@@ -102,6 +104,8 @@ Estas reglas deben estar en el producto, no solo en un manual.
 | RN-09 | La reubicación o el santuario se presentan como destinos legítimos, no como fracaso | Textos de resultado del caso |
 | RN-10 | La red prueba que hubo un pago y que un documento no cambió; no prueba que la factura sea auténtica | Se dice en la interfaz (niveles de validación) y en el pitch |
 | RN-11 | Solo una persona con cuenta puede apadrinar; las ONG y el administrador no aportan | El servidor responde 401 sin sesión y 403 con otra cuenta (ADR-16) |
+| RN-12 | Un aporte de más de 50 USDC exige identidad verificada; la biometría es opcional por debajo del límite y exige autorización expresa (dato sensible) | El servidor responde 403 `verification_required`; se guarda solo el resultado y la persona puede borrarlo (ADR-21) |
+| RN-13 | Un documento verifica una sola cuenta | HMAC del documento con restricción única en la base |
 
 ## 6. Atributos de calidad como escenarios
 
@@ -140,6 +144,7 @@ Importancia para el negocio y dificultad arquitectónica (A/M/B). Los (A, A) y (
 | Cómo se asocia un aporte a un caso | El contrato `ProofOfWild` recibe el aporte con el código del caso y lo reparte entre sus etapas. Reemplazó al memo de texto del primer diseño (ADR-03) | ADR-11 |
 | Cómo se guardan los datos y si hay servidor | Aplicación con backend propio (monolito modular), PostgreSQL y evidencias en la base | ADR-01, ADR-02, ADR-17 |
 | Si donar exige cuenta | Sí: apadrinar exige una cuenta de persona, con invitación y regreso al caso | ADR-14, ADR-16 |
+| Si se verifica la identidad (KYC) | Por niveles: identidad verificada solo para aportes de más de 50 USDC, con biometría en el navegador y registro simulado | ADR-21 |
 | Quién prepara los casos de la demo | Un script reproducible prepara la red y la base con los 5 casos del documento de datos de prueba | ADR-15 |
 
 Quedan para después del 13 de noviembre: modelo de ingresos, aportes mensuales, reasignación de saldo si el animal muere o el caso supera su meta, la firma de un validador y con qué centro validar el flujo.

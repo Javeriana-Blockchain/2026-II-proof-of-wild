@@ -35,6 +35,7 @@ Cuatro ideas sostienen el diseño:
 | ADR-18 | Despliegue en Vercel con PostgreSQL gestionado en Neon; `main` es producción y cada rama tiene una vista previa privada | QA-DEP-01, CON-06 | Servidor propio; contenedores orquestados | Primera carga lenta cuando Vercel y Neon están dormidos |
 | ADR-19 | El estado de cada etapa (completada, en curso, pendiente) se calcula con lo cubierto, igual que el contrato llena las etapas; no se guarda a mano | QA-TRZ-01, RN-01 | Estado escrito por la ONG o la semilla | La columna `stages.status` queda solo como dato de la semilla |
 | ADR-20 | Frontend de una sola página principal (Inicio, Cómo funciona, Casos y Voluntariados como secciones con menú de anclas); `/casos`, `/como-funciona` y `/voluntariados` redirigen a su sección desde `next.config.ts`. El sistema visual «Mapa de liberación» está en [`DESIGN.md`](../../DESIGN.md) | QA-USA-01 | Una página por sección | Las secciones comparten una sola carga de datos |
+| ADR-21 | Verificación de identidad por niveles (KYC) basada en riesgo: con la cuenta (nivel 1) se apadrina hasta 50 USDC; por encima se exige identidad verificada (nivel 2), que el servidor hace cumplir en `/api/aportes/preparar` (403 `verification_required`). La verificación pide documento, prueba de vida (parpadear y girar la cabeza) y comparación del rostro, que corren en el navegador con `@vladmandic/human`; la consulta al registro pasa por el puerto `IdentityProvider`, hoy con un adaptador simulado. Se guarda solo el resultado: HMAC del documento (un documento no verifica dos cuentas), sus últimos 4 dígitos, el método, la coincidencia, el proveedor y el consentimiento. Las ONG muestran su verificación (KYB) en el perfil, simulada en la demo | QA-SEG-02, QA-SEG-01, CON-05 | KYC obligatorio para todos; librería de Python en un servicio aparte; proveedor real desde el MVP | La biometría hecha en el navegador se puede falsear: en producción la hace el proveedor (Truora, Didit, MetaMap) con el mismo puerto |
 
 ### Reemplazadas por el brief del 9 de noviembre de 2026
 
@@ -58,6 +59,7 @@ Cuatro ideas sostienen el diseño:
 | Autenticación | `secure-remote-password` (SRP-6a) y sesiones con cookie httpOnly |
 | Validación | zod para entradas de API y variables de entorno |
 | Imágenes | sharp (re-codifica en WebP y elimina EXIF) |
+| Biometría | `@vladmandic/human` en el navegador (detección, malla, antispoof, liveness y descriptor del rostro); modelos servidos desde `public/modelos/human` |
 | Pruebas | Vitest (dominio, adaptadores e integración con PostgreSQL real) y una prueba de punta a punta en testnet (`npm run red:probar`) |
 | Despliegue | Vercel y Neon; CI en GitHub Actions (tipos, pruebas con PostgreSQL y compilación) |
 
@@ -172,20 +174,22 @@ flowchart LR
 | `modules/cases` | Reglas puras: código de caso, reparto de un aporte entre etapas, lo que falta, progreso y estado de cada etapa | `allocateContribution`, `stageStatusesFromFunding` |
 | `modules/contributions` | Aportes: preparar, enviar, confirmar leyendo la red y reconciliar | `ContributionService.prepare`, `submit`, `refresh` |
 | `modules/records` | Gastos e hitos de la ONG: subir la evidencia, armar la transacción, enviar y confirmar | `RecordService.prepareExpense`, `prepareMilestone`, `submit`, `refresh` |
+| `modules/identity` | Verificación de identidad por niveles: límite por monto, formato del documento, umbrales de la biometría, documento único por cuenta | `IdentityService.verify`, `assertCanContribute`, `remove` |
 | `modules/shared` | Errores de dominio, actor de la ONG y utilidades de etapas | — |
-| `ports/` | Contratos de lo que el dominio necesita del exterior | `ContractLedger`, `EvidenceStorage` (y `PaymentRail`, `EvidenceAnchor` del plan B) |
+| `ports/` | Contratos de lo que el dominio necesita del exterior | `ContractLedger`, `EvidenceStorage`, `IdentityProvider` (y `PaymentRail`, `EvidenceAnchor` del plan B) |
+| `platform/identity` | Registro de identidad simulado para la demo (aprueba documentos válidos; los que terminan en 0000 «no aparecen») | `IdentityProvider` |
 | `platform/stellar` | Cliente del contrato y adaptador Soroban (`contract-ledger.ts`); adaptador clásico del plan B | `ContractLedger` |
 | `platform/db` | Esquema, migraciones, repositorios de lectura y escritura, datos de prueba y semillas | Repositorios |
 | `platform/storage` | Evidencias en la base (`db-storage`) o en disco (`local-storage`), limpieza de imágenes y reglas de subida | `EvidenceStorage` |
 | `platform/auth` | Registro y SRP-6a, sesiones y roles | `registerAccount`, `startLogin`, `finishLogin`, `findSessionUser` |
 | `platform/config` | Variables de entorno validadas con zod | `get…Env` |
-| `platform/container.ts` | Raíz de composición: une servicios y adaptadores | `getCatalogService`, `getContributionService`, `getRecordService` |
+| `platform/container.ts` | Raíz de composición: une servicios y adaptadores | `getCatalogService`, `getContributionService`, `getRecordService`, `getIdentityService` |
 
 Rutas API:
 
 | Ruta | Para qué |
 |---|---|
-| `POST /api/aportes/preparar` | Transacción `aportar` sin firmar y reparto previsto (exige persona) |
+| `POST /api/aportes/preparar` | Transacción `aportar` sin firmar y reparto previsto (exige persona; más de 50 USDC exige identidad verificada) |
 | `POST /api/aportes/enviar` | Recibe la transacción firmada, guarda la copia, la envía y la confirma; liga la billetera al perfil (exige persona) |
 | `GET /api/aportes/{hash}` | Estado de un aporte enviado; vuelve a leer la red |
 | `GET /api/casos/{codigo}/mi-aporte` | «Tu aporte» por etapa para la billetera conectada |
@@ -193,6 +197,7 @@ Rutas API:
 | `POST /api/portal/registros/enviar`, `GET /api/portal/registros/{tipo}/{id}` | Envían y confirman el gasto o el hito |
 | `GET /api/evidencias/{clave}` | Sirve una factura o foto pública |
 | `GET /api/health` | Salud del servicio y de la base |
+| Acciones `verifyIdentity` y `removeIdentity` (`/cuenta/verificar`) | Guardan o borran la verificación de identidad; reciben puntajes, nunca imágenes |
 
 ### 4.3 Modelo de datos
 
@@ -304,7 +309,7 @@ erDiagram
   }
 ```
 
-Otras tablas: `donors` (alias público de una billetera que aporta), `evidence_files` (facturas y fotos, ADR-17) y `audit_log` (definida, todavía sin uso).
+Otras tablas: `donors` (alias público de una billetera que aporta), `evidence_files` (facturas y fotos, ADR-17), `identity_verifications` (resultado de la verificación de identidad de una persona, ADR-21: HMAC y últimos 4 del documento, método, coincidencia, proveedor y consentimiento; sin imágenes) y `audit_log` (definida, todavía sin uso). Migraciones: `0000_modelo_mvp`, `0001_evidencias_en_bd` y `0002_verificacion_identidad`.
 
 Estados de una transacción (`contributions`, `expenses`, `milestones`): `enviada` → `confirmada` o `fallida`. Restricciones que la base hace cumplir: hashes únicos y en hexadecimal, cuentas Stellar con formato válido, código de caso `POW_000`, montos y costos positivos, un aporte confirmado siempre tiene fecha y un gasto confirmado siempre tiene transacción.
 
@@ -323,6 +328,12 @@ sequenceDiagram
     UI-->>D: invitacion a crear cuenta o ingresar
     D->>UI: crea la cuenta o ingresa (SRP-6a)
     UI-->>D: vuelve al caso con la ventana abierta
+  end
+  opt aporte de mas de 50 USDC sin identidad verificada
+    UI-->>D: pide verificar la identidad
+    D->>UI: documento, prueba de vida y rostro (en el navegador)
+    UI->>API: puntajes y documento, sin imagenes
+    API-->>UI: nivel 2; vuelve al caso con el monto elegido
   end
   D->>UI: elige el monto
   UI->>API: preparar aporte
@@ -415,9 +426,10 @@ tests/            Dominio, adaptadores e integración con PostgreSQL
 | Promesa del producto | QA-TRZ-01 | ADR-11, ADR-12, ADR-13 | contrato, `modules/contributions`, `modules/records`, `platform/stellar` | 4.4, 4.5 | `npm run red:probar`: 27 comprobaciones en testnet (reparto, pago al proveedor, hashes de factura y foto) |
 | Datos sensibles | QA-SEG-01 | ADR-13, ADR-14 | proyecciones de `modules/catalog`, `platform/storage` | 4.2, 4.3 | Pruebas de integración (sin identificadores ni datos personales en lo público) y de EXIF |
 | Cuentas y roles | QA-SEG-02 | ADR-14, ADR-16 | `platform/auth`, `app/api/_lib/donante.ts`, portal | 4.4 | Pruebas de SRP y sesiones; 401 y 403 en las rutas de aportes |
+| Identidad por niveles | QA-SEG-02, CON-05 | ADR-21 | `modules/identity`, `platform/identity`, `components/identidad` | 4.4 | Pruebas del límite, del documento único, del consentimiento y del rechazo del registro; 403 `verification_required` |
 | Demo en red pública | QA-DIS-01 | ADR-06, ADR-12 | lectura desde la base, copia antes de enviar | 4.6 | Pruebas de aportes con reenvío y confirmación tardía |
 | Contrato | QA-MOD-01 | ADR-09, ADR-11 | `ports/`, `platform/stellar` | 4.2 | Paso del pago clásico al contrato sin cambios en `modules/cases` |
-| Velocidad | QA-TST-01, QA-DEP-01 | ADR-01, ADR-15, ADR-18 | `modules/*`, scripts, Vercel | 5 | 93 pruebas en segundos; despliegue al fusionar en `main` |
+| Velocidad | QA-TST-01, QA-DEP-01 | ADR-01, ADR-15, ADR-18 | `modules/*`, scripts, Vercel | 5 | 103 pruebas en segundos; despliegue al fusionar en `main` |
 
 ## 7. Evaluación ligera (ATAM reducido)
 
@@ -444,6 +456,8 @@ Evaluación hecha por el propio equipo con escenarios y riesgos; no sustituye un
 | R-04 | Un hash no prueba que la factura sea auténtica | RN-10 | Decirlo en la interfaz y en el pitch; niveles de validación visibles |
 | R-05 | Si el RPC tarda más que la espera del servidor, el aporte queda `enviada` hasta que alguien vuelva a consultarlo | ADR-12 | El navegador sigue consultando; `reconcile()` existe pero aún no hay tarea programada |
 | R-06 | Primera carga lenta cuando Vercel y Neon están dormidos | ADR-18 | Abrir la página unos minutos antes de presentar |
+| R-07 | La biometría corre en el navegador: alguien con conocimientos técnicos puede enviar puntajes falsos, y la consulta al registro es simulada | ADR-21 | Decirlo en la demo; en producción el proveedor hace la biometría y la consulta con el mismo puerto |
+| R-08 | La cámara puede fallar el día de la demo (permisos, luz o un equipo lento) | ADR-21 | Botón «Simular la verificación (demo)», que queda marcado como simulada |
 
 ### Puntos de sensibilidad y trade-offs
 
@@ -466,5 +480,7 @@ Evaluación hecha por el propio equipo con escenarios y riesgos; no sustituye un
 - Sin tarea programada de reconciliación (`CRON_SECRET` está definida pero ninguna ruta la usa).
 - `audit_log` existe en el esquema pero nadie escribe en ella.
 - Sin rol de validador ni firma doble (etapa 2); los niveles de validación los fija la ONG.
+- La verificación de identidad usa un registro simulado y la de las ONG solo se muestra (simulada); falta el adaptador de un proveedor real.
+- El límite de 50 USDC se revisa al preparar el aporte; quien arme su propia transacción y llame al contrato directamente no pasa por él.
 - Sin recuperación de contraseña ni cierre de caso.
 - Un caso, perfil o comprobante que no existe muestra la página «no encontrado» pero responde 200 en vez de 404, porque el sitio ya empezó a transmitir la página mientras cargaba los datos.
