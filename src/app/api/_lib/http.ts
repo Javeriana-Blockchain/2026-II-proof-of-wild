@@ -4,6 +4,7 @@ import { DomainError, ValidationError } from "@/modules/shared/errors";
 
 const STATUS_BY_CODE: Record<string, number> = {
   validation: 400,
+  auth_required: 401,
   forbidden: 403,
   not_found: 404,
   invalid_transition: 409,

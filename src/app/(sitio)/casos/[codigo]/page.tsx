@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { formatAmount, formatDate } from "@/app/_lib/format";
 import { getSession } from "@/app/_lib/session";
 import { ApadrinarDialog } from "@/components/casos/ApadrinarDialog";
+import { ApadrinarGate } from "@/components/casos/ApadrinarGate";
 import { ContributionsTable } from "@/components/casos/ContributionsTable";
 import { PersonalizedTimeline } from "@/components/casos/PersonalizedTimeline";
 import { TransparencyPanel } from "@/components/casos/TransparencyPanel";
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 type Params = {
   params: Promise<{ codigo: string }>;
-  searchParams: Promise<{ pestana?: string; apadrinar?: string }>;
+  searchParams: Promise<{ pestana?: string; apadrinar?: string; bienvenida?: string }>;
 };
 
 const TABS = [
@@ -42,13 +43,17 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * tratamiento a todo el ancho y tres pestañas: línea de tiempo, transparencia y aportes.
  */
 export default async function CaseDetailPage({ params, searchParams }: Params) {
-  const [{ codigo }, { pestana, apadrinar }, session] = await Promise.all([params, searchParams, getSession()]);
+  const [{ codigo }, { pestana, apadrinar, bienvenida }, session] = await Promise.all([params, searchParams, getSession()]);
   const detail = await getCatalogService().caseDetail(codigo);
   if (!detail) notFound();
 
   const tab = TABS.find((t) => t.id === pestana)?.id ?? "linea";
   const name = detail.commonName ?? "Especie reservada";
   const canSponsor = !detail.recovered && Number(detail.remaining) > 0;
+  // Apadrinar exige una cuenta de persona (ADR-16): sin ella se abre la invitación a crearla o ingresar, y al
+  // terminar se vuelve aquí con la ventana de apadrinar abierta.
+  const isDonor = session?.role === "persona";
+  const returnTo = `/casos/${detail.code}?pestana=${tab}&apadrinar=1&bienvenida=1`;
 
   return (
     <main>
@@ -133,6 +138,9 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
                   >
                     Apadrinar este caso <IconoFlecha />
                   </Link>
+                  {isDonor ? null : (
+                    <p className="w-full text-sm text-white/80">Te pediremos tu cuenta: crearla toma un minuto.</p>
+                  )}
                 </div>
               ) : (
                 <p className="mt-5 font-semibold text-arena">
@@ -182,7 +190,16 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
         </div>
       </section>
 
-      {apadrinar === "1" && canSponsor ? (
+      {apadrinar === "1" && canSponsor && !isDonor ? (
+        <ApadrinarGate
+          item={{ code: detail.code, name, photoUrl: detail.photoUrl, route: detail.stages }}
+          returnTo={returnTo}
+          closeHref={`/casos/${detail.code}?pestana=${tab}`}
+          otherAccount={session ? session.displayName : null}
+        />
+      ) : null}
+
+      {apadrinar === "1" && canSponsor && isDonor ? (
         <ApadrinarDialog
           item={{
             code: detail.code,
@@ -194,7 +211,9 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
           }}
           explorerBaseUrl={getExplorerEnv().EXPLORER_BASE_URL}
           closeHref={`/casos/${detail.code}?pestana=${tab}`}
-          profileHref={session?.role === "persona" ? "/perfil" : null}
+          profileHref="/perfil"
+          // Sin alias todavía, el nombre que se ve es el correo: en ese caso la bienvenida va sin nombre.
+          welcome={bienvenida === "1" ? (session.displayName.includes("@") ? "" : session.displayName) : null}
         />
       ) : null}
     </main>

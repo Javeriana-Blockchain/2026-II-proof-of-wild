@@ -48,3 +48,10 @@ export class ContributionRejectedError extends DomainError {
     super(message, "contribution_rejected");
   }
 }
+
+/** La acción exige iniciar sesión (por ejemplo, apadrinar). */
+export class AuthRequiredError extends DomainError {
+  constructor(message: string) {
+    super(message, "auth_required");
+  }
+}

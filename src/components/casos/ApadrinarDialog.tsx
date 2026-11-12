@@ -52,11 +52,14 @@ export function ApadrinarDialog({
   explorerBaseUrl,
   closeHref,
   profileHref,
+  welcome,
 }: {
   item: ApadrinarCase;
   explorerBaseUrl: string;
   closeHref: string;
   profileHref: string | null;
+  /** Recién creó su cuenta o ingresó para apadrinar: se le da la bienvenida con su nombre. */
+  welcome?: string | null;
 }) {
   const router = useRouter();
   const wallet = useWallet();
@@ -276,6 +279,17 @@ export function ApadrinarDialog({
             </div>
           ) : (
             <div className="space-y-5">
+              {welcome != null ? (
+                <p className="anim-ventana flex items-center gap-3 rounded-[18px] bg-salvia px-4 py-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bosque text-white">
+                    <IconoCheck className="h-4 w-4" />
+                  </span>
+                  <span>
+                    <strong>¡Listo{welcome ? `, ${welcome}` : ""}!</strong> Tu cuenta está lista. Ahora elige tu aporte y
+                    conecta tu billetera.
+                  </span>
+                </p>
+              ) : null}
               <h2 id="titulo-apadrinar" className="text-4xl">
                 Apadrina este caso
               </h2>

@@ -5,6 +5,7 @@ import { getSession } from "@/app/_lib/session";
 import { getContributionService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
 import { contributions, personProfiles } from "@/platform/db/schema";
+import { requireDonor } from "../../_lib/donante";
 import { errorResponse, readJson } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +16,11 @@ const body = z.object({ signedXdr: z.string().min(10).max(20_000) });
 
 /**
  * RF-APA-02: recibe la transacción firmada por la billetera, guarda una copia, la envía y la confirma leyendo
- * la red. Si la persona inició sesión, su billetera queda ligada a su perfil (firmar prueba que es suya).
+ * la red. Exige la sesión de una persona (ADR-16); su billetera queda ligada a su perfil (firmar prueba que es suya).
  */
 export async function POST(request: Request) {
   try {
+    await requireDonor();
     const { signedXdr } = await readJson(request, body);
     const result = await getContributionService().submit(signedXdr);
     await linkWalletToProfile(result.txHash);

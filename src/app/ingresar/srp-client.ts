@@ -12,13 +12,15 @@ export async function signUp(
   email: string,
   password: string,
   role: "persona" | "ong",
+  returnTo?: string,
 ): Promise<ActionResult<{ redirectTo: string }>> {
   const user = normalize(email);
   const salt = srp.generateSalt();
   const verifier = srp.deriveVerifier(srp.derivePrivateKey(salt, user, password));
   const created = await createAccount({ email: user, role, salt, verifier, consent: true });
   if (!created.ok) return created;
-  return signIn(user, password);
+  // Quien venía de apadrinar vuelve al caso con la ventana abierta; el perfil se completa después.
+  return signIn(user, password, returnTo);
 }
 
 /** Inicia sesión en dos pasos y verifica M2: si el servidor no conoce el verificador, no puede calcularlo. */

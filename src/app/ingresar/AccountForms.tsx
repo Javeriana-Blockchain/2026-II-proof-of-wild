@@ -34,7 +34,8 @@ export function AccountForms({ initialMode, initialRole, returnTo }: { initialMo
     }
 
     setBusy(true);
-    const result = mode === "crear" ? await signUp(email, password, role) : await signIn(email, password, returnTo);
+    const result =
+      mode === "crear" ? await signUp(email, password, role, returnTo) : await signIn(email, password, returnTo);
     setBusy(false);
     if (!result.ok) return setError(result.message);
     router.push(result.data.redirectTo);
