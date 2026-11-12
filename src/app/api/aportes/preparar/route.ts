@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getContributionService } from "@/platform/container";
+import { getContributionService, getIdentityService } from "@/platform/container";
 import { requireDonor } from "../../_lib/donante";
 import { errorResponse, readJson } from "../../_lib/http";
 
@@ -14,12 +14,14 @@ const body = z.object({
 
 /**
  * RF-APA-01: transacción `aportar` sin firmar y el reparto previsto, para mostrarlo antes de firmar. Solo para una
- * persona con la sesión iniciada (ADR-16).
+ * persona con la sesión iniciada (ADR-16); un aporte por encima del límite exige identidad verificada (ADR-21).
  */
 export async function POST(request: Request) {
   try {
-    await requireDonor();
-    return NextResponse.json(await getContributionService().prepare(await readJson(request, body)));
+    const donor = await requireDonor();
+    const input = await readJson(request, body);
+    await getIdentityService().assertCanContribute(donor.userId, input.amount);
+    return NextResponse.json(await getContributionService().prepare(input));
   } catch (error) {
     return errorResponse(error);
   }

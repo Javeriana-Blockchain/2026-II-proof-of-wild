@@ -15,6 +15,13 @@
       "when": 1794287273283,
       "tag": "0001_evidencias_en_bd",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794459913089,
+      "tag": "0002_verificacion_identidad",
+      "breakpoints": true
     }
   ]
 }

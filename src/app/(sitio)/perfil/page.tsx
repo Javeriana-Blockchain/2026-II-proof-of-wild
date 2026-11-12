@@ -5,7 +5,7 @@ import { requireSession } from "@/app/_lib/session";
 import { BadgeCard, DonorHeader, DonorSections, DonorTotals } from "@/components/huella/DonorSections";
 import { buttonClass } from "@/components/ui";
 import { getExplorerEnv } from "@/platform/config/env";
-import { evidenceUrl, getCatalogService } from "@/platform/container";
+import { evidenceUrl, getCatalogService, getIdentityService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
 import { enrollmentsOf, getDonorView, type DonorView } from "@/platform/db/repositories/donor";
 import { personProfiles } from "@/platform/db/schema";
@@ -18,13 +18,14 @@ export const dynamic = "force-dynamic";
 export default async function PerfilPage() {
   const session = await requireSession("/perfil", "persona");
   const db = getDb();
-  const [[profile], cases] = await Promise.all([
+  const [[profile], cases, identity] = await Promise.all([
     db
       .select({ alias: personProfiles.alias, account: personProfiles.stellarAccount })
       .from(personProfiles)
       .where(eq(personProfiles.userId, session.userId))
       .limit(1),
     getCatalogService().listCases(),
+    getIdentityService().status(session.userId),
   ]);
 
   const account = profile?.account ?? null;
@@ -46,6 +47,7 @@ export default async function PerfilPage() {
       <DonorHeader
         name={alias}
         account={account}
+        verified={!!identity}
         seal={
           <BadgeCard
             view={view}
@@ -55,6 +57,9 @@ export default async function PerfilPage() {
         }
         actions={
           <>
+            <Link href="/cuenta/verificar" className={buttonClass(identity ? "contorno" : "arena")}>
+              {identity ? "Ver mi verificación" : "Verificar mi identidad"}
+            </Link>
             {account ? <DisconnectButton /> : null}
             {!profile?.alias ? (
               <Link href="/cuenta/perfil" className={buttonClass("arena")}>

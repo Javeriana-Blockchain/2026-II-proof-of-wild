@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatAmount, formatDate } from "@/app/_lib/format";
+import { IconoCheck, IconoEscudo } from "@/components/iconos";
 import { ContourField } from "@/components/mapa/ContourField";
 import { Reveal } from "@/components/movimiento/Reveal";
 import { RouteMap } from "@/components/mapa/RouteMap";
@@ -20,6 +21,16 @@ export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }> };
 
 const KIND_LABELS = { centro_atencion: "Centro de atención y valoración", fundacion: "Fundación", ong: "ONG" } as const;
+
+/**
+ * Verificación de la ONG (KYB, ADR-21): lo que se revisa antes de aprobar su perfil y dejarla recibir aportes.
+ * En la demo es simulada; en producción la hace un proveedor contra el RUES y la Registraduría.
+ */
+const KYB_CHECKS = [
+  ["Registro legal", "RUT y certificado de Cámara de Comercio vigentes"],
+  ["Representante legal", "Cédula, prueba de vida y rostro verificados"],
+  ["Cuenta en Stellar", "Es la que el contrato registra para sus casos"],
+] as const;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ngo = await getPublicNgo(getDb(), (await params).slug);
@@ -64,7 +75,9 @@ export default async function OngProfilePage({ params }: Props) {
             <Chip tone="oscuro">
               {KIND_LABELS[ngo.kind]} · {ngo.city}
             </Chip>
-            <Chip tone="salvia">Perfil aprobado</Chip>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-arena px-3 py-1 text-sm font-semibold text-profundo">
+              <IconoEscudo className="h-4 w-4" /> ONG verificada
+            </span>
           </p>
           <p className="max-w-2xl text-white/90">
             {ngo.description}
@@ -158,6 +171,31 @@ export default async function OngProfilePage({ params }: Props) {
         </section>
 
         <aside className="space-y-6">
+          <Reveal as="section" variant="pop" aria-labelledby="verificacion-ong" className="space-y-4 rounded-[24px] bg-white p-5 ring-1 ring-arena/70">
+            <h2 id="verificacion-ong" className="flex items-center gap-3 text-2xl">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-profundo text-crema">
+                <IconoEscudo className="h-5 w-5" />
+              </span>
+              ONG verificada
+            </h2>
+            <ul className="space-y-3">
+              {KYB_CHECKS.map(([title, detail]) => (
+                <li key={title} className="flex gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bosque text-white">
+                    <IconoCheck className="h-3.5 w-3.5" />
+                  </span>
+                  <span>
+                    <strong className="block leading-snug">{title}</strong>
+                    <span className="text-sm text-secundario">{detail}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="rounded-[14px] bg-crema px-3 py-2 text-sm">
+              Verificación simulada en la demo. En producción la hace un proveedor contra el RUES y la Registraduría.
+            </p>
+          </Reveal>
+
           <section className="space-y-3 border-t-2 border-texto/80 pt-4">
             <h2 className="text-2xl">Voluntariados</h2>
             {volunteering.filter((v) => v.ngo.slug === ngo.slug).length === 0 ? (

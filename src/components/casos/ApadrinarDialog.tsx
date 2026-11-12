@@ -6,11 +6,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { formatAmount } from "@/app/_lib/format";
 import { useWallet, walletErrorMessage } from "@/components/billetera/WalletProvider";
-import { IconoCheck, IconoMenu } from "@/components/iconos";
+import { IconoCheck, IconoEscudo, IconoMenu } from "@/components/iconos";
 import { buttonClass, Spinner } from "@/components/ui";
 import { fromStroops, toStroops } from "@/lib/amount";
 import { shortAccount } from "@/lib/stellar-account";
 import { allocateContribution, type StageAllocation } from "@/modules/cases";
+import { requiredLevel, UNVERIFIED_LIMIT } from "@/modules/identity";
 
 export interface ApadrinarCase {
   code: string;
@@ -53,6 +54,9 @@ export function ApadrinarDialog({
   closeHref,
   profileHref,
   welcome,
+  identityVerified = false,
+  returnHref,
+  initialAmount,
 }: {
   item: ApadrinarCase;
   explorerBaseUrl: string;
@@ -60,10 +64,16 @@ export function ApadrinarDialog({
   profileHref: string | null;
   /** Recién creó su cuenta o ingresó para apadrinar: se le da la bienvenida con su nombre. */
   welcome?: string | null;
+  /** Identidad verificada (nivel 2): sin límite de monto (ADR-21). */
+  identityVerified?: boolean;
+  /** Esta ventana: a donde vuelve la persona después de verificarse, con el monto que había elegido. */
+  returnHref?: string;
+  /** Monto elegido antes de ir a verificarse. */
+  initialAmount?: string;
 }) {
   const router = useRouter();
   const wallet = useWallet();
-  const [amount, setAmount] = useState(SUGGESTED.find((s) => Number(s) <= Number(item.remaining)) ?? "");
+  const [amount, setAmount] = useState(initialAmount ?? SUGGESTED.find((s) => Number(s) <= Number(item.remaining)) ?? "");
   const [step, setStep] = useState<Step>("idle");
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -88,6 +98,11 @@ export function ApadrinarDialog({
       return { allocation: null, message: e instanceof Error ? e.message : null };
     }
   }, [amount, item.stages]);
+
+  const needsVerification = !identityVerified && !!preview.allocation && requiredLevel(amount) === 2;
+  const verifyHref = returnHref
+    ? `/cuenta/verificar?volver=${encodeURIComponent(`${returnHref}&monto=${amount}`)}`
+    : "/cuenta/verificar";
 
   const stageName = (position: number) => item.stages.find((s) => s.position === position)?.name ?? `Etapa ${position}`;
   const busy = step !== "idle";
@@ -290,9 +305,16 @@ export function ApadrinarDialog({
                   </span>
                 </p>
               ) : null}
-              <h2 id="titulo-apadrinar" className="text-4xl">
-                Apadrina este caso
-              </h2>
+              <div className="space-y-2">
+                <h2 id="titulo-apadrinar" className="text-4xl">
+                  Apadrina este caso
+                </h2>
+                {identityVerified ? (
+                  <p className="flex items-center gap-2 text-sm font-semibold text-bosque">
+                    <IconoEscudo className="h-4 w-4" /> Identidad verificada · sin límite de monto
+                  </p>
+                ) : null}
+              </div>
               <fieldset>
                 <legend className="mb-2 font-semibold">Elige el monto de tu aporte</legend>
                 <div className="grid grid-cols-3 gap-3">
@@ -325,6 +347,21 @@ export function ApadrinarDialog({
                 </label>
                 <p className="mt-2 text-sm text-secundario">Aporte único. No puede superar lo que falta para el tratamiento.</p>
               </fieldset>
+
+              {needsVerification ? (
+                <div className="anim-ventana flex flex-wrap items-center gap-4 rounded-[18px] bg-crema p-4">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-profundo text-crema">
+                    <IconoEscudo className="h-5 w-5" />
+                  </span>
+                  <p className="min-w-0 flex-1">
+                    <strong className="block">Para aportes de más de {UNVERIFIED_LIMIT} USDC, verifica tu identidad</strong>
+                    <span className="text-sm text-secundario">Toma unos dos minutos y vuelves aquí con tu aporte.</span>
+                  </p>
+                  <Link href={verifyHref} className={buttonClass("primario", "py-2.5")}>
+                    Verificar mi identidad
+                  </Link>
+                </div>
+              ) : null}
 
               <div className="flex items-center justify-between gap-3 rounded-2xl bg-gris px-5 py-4">
                 {wallet.address ? (
@@ -364,7 +401,7 @@ export function ApadrinarDialog({
               <button
                 type="button"
                 onClick={confirm}
-                disabled={busy || !preview.allocation}
+                disabled={busy || !preview.allocation || needsVerification}
                 className={buttonClass("primario", "w-full py-4 text-lg")}
               >
                 {busy ? <Spinner className="h-5 w-5" /> : null}

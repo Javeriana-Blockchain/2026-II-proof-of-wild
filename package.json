@@ -31,6 +31,7 @@
     "@creit.tech/stellar-wallets-kit": "^2.8.0",
     "@stellar/freighter-api": "^6.0.1",
     "@stellar/stellar-sdk": "^17.4.0",
+    "@vladmandic/human": "3.3.6",
     "drizzle-orm": "^0.45.4",
     "jose": "^6.2.15",
     "next": "^16.4.5",

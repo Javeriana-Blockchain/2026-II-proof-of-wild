@@ -45,6 +45,8 @@ export const expenseCategory = pgEnum("expense_category", [
   "traslado_liberacion",
 ]);
 export const availability = pgEnum("availability", ["toda_la_jornada", "manana", "tarde"]);
+export const identityDocument = pgEnum("identity_document", ["cedula", "pasaporte"]);
+export const identityMethod = pgEnum("identity_method", ["biometria", "simulada"]);
 
 const id = () => uuid("id").primaryKey().defaultRandom();
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -129,6 +131,37 @@ export const personProfiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [check("person_profiles_stellar", sql`${t.stellarAccount} IS NULL OR ${stellarAccount(t.stellarAccount)}`)],
+);
+
+/**
+ * Verificación de identidad de una persona (nivel 2, ADR-21). Solo el resultado: ni fotos, ni plantilla del rostro,
+ * ni el número del documento (se guarda su HMAC para que un documento no verifique dos cuentas, y los últimos 4).
+ */
+export const identityVerifications = pgTable(
+  "identity_verifications",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    documentType: identityDocument("document_type").notNull(),
+    documentHash: text("document_hash").notNull().unique(),
+    documentLast4: text("document_last4").notNull(),
+    method: identityMethod("method").notNull(),
+    faceMatch: numeric("face_match", { precision: 4, scale: 3 }),
+    provider: text("provider").notNull(),
+    providerReference: text("provider_reference").notNull(),
+    /** Autorización expresa para tratar datos sensibles (Ley 1581 de 2012, art. 6). */
+    consentAt: timestamp("consent_at", { withTimezone: true }).notNull(),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    check("identity_verifications_hash", hex64(t.documentHash)),
+    check("identity_verifications_last4", sql`${t.documentLast4} ~ '^[0-9A-Z]{4}$'`),
+    check(
+      "identity_verifications_face_match",
+      sql`(${t.method} = 'simulada' AND ${t.faceMatch} IS NULL) OR (${t.method} = 'biometria' AND ${t.faceMatch} BETWEEN 0 AND 1)`,
+    ),
+  ],
 );
 
 // ---------------------------------------------------------------------------

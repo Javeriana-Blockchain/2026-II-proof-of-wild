@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { formatAmount, formatDate, formatShortDate } from "@/app/_lib/format";
-import { IconoCheck, IconoHuella } from "@/components/iconos";
+import { IconoCheck, IconoEscudo, IconoHuella } from "@/components/iconos";
 import { ContourField } from "@/components/mapa/ContourField";
 import { RouteMap } from "@/components/mapa/RouteMap";
 import { Reveal } from "@/components/movimiento/Reveal";
@@ -85,9 +85,12 @@ export function DonorHeader({
   actions,
   seal,
   children,
+  verified = false,
 }: {
   name: string;
   account: string | null;
+  /** Identidad verificada (nivel 2, ADR-21). */
+  verified?: boolean;
   actions?: ReactNode;
   seal: ReactNode;
   children?: ReactNode;
@@ -105,9 +108,16 @@ export function DonorHeader({
         </span>
         <div className="space-y-2">
           <h1 className="text-5xl font-bold break-words sm:text-6xl">{name}</h1>
-          <p className="inline-flex items-center gap-2 rounded-md border border-white/25 px-2.5 py-1 font-mono text-sm text-white/85">
-            <span aria-hidden className={`h-2 w-2 rounded-full ${account ? "bg-salvia" : "bg-white/40"}`} />
-            {account ? `${account.slice(0, 4)}…${account.slice(-5)}` : "Sin billetera vinculada"}
+          <p className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-md border border-white/25 px-2.5 py-1 font-mono text-sm text-white/85">
+              <span aria-hidden className={`h-2 w-2 rounded-full ${account ? "bg-salvia" : "bg-white/40"}`} />
+              {account ? `${account.slice(0, 4)}…${account.slice(-5)}` : "Sin billetera vinculada"}
+            </span>
+            {verified ? (
+              <span className="inline-flex items-center gap-1.5 rounded-md bg-arena px-2.5 py-1 text-sm font-semibold text-profundo">
+                <IconoEscudo className="h-4 w-4" /> Identidad verificada
+              </span>
+            ) : null}
           </p>
         </div>
         {children ? <div className="max-w-xl text-white/85">{children}</div> : null}

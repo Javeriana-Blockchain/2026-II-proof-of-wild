@@ -14,14 +14,14 @@ import { ContourField } from "@/components/mapa/ContourField";
 import { RouteMap } from "@/components/mapa/RouteMap";
 import { buttonClass, Chip, ProgressBar } from "@/components/ui";
 import { getExplorerEnv } from "@/platform/config/env";
-import { getCatalogService } from "@/platform/container";
+import { getCatalogService, getIdentityService } from "@/platform/container";
 import { Reveal } from "@/components/movimiento/Reveal";
 
 export const dynamic = "force-dynamic";
 
 type Params = {
   params: Promise<{ codigo: string }>;
-  searchParams: Promise<{ pestana?: string; apadrinar?: string; bienvenida?: string }>;
+  searchParams: Promise<{ pestana?: string; apadrinar?: string; bienvenida?: string; monto?: string }>;
 };
 
 const TABS = [
@@ -43,7 +43,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  * tratamiento a todo el ancho y tres pestañas: línea de tiempo, transparencia y aportes.
  */
 export default async function CaseDetailPage({ params, searchParams }: Params) {
-  const [{ codigo }, { pestana, apadrinar, bienvenida }, session] = await Promise.all([params, searchParams, getSession()]);
+  const [{ codigo }, { pestana, apadrinar, bienvenida, monto }, session] = await Promise.all([params, searchParams, getSession()]);
   const detail = await getCatalogService().caseDetail(codigo);
   if (!detail) notFound();
 
@@ -54,6 +54,9 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
   // terminar se vuelve aquí con la ventana de apadrinar abierta.
   const isDonor = session?.role === "persona";
   const returnTo = `/casos/${detail.code}?pestana=${tab}&apadrinar=1&bienvenida=1`;
+  // Aportes grandes piden identidad verificada (ADR-21); al verificarse se vuelve a la ventana de apadrinar.
+  const identityVerified =
+    isDonor && session && apadrinar === "1" ? (await getIdentityService().levelOf(session.userId)) === 2 : false;
 
   return (
     <main>
@@ -212,6 +215,9 @@ export default async function CaseDetailPage({ params, searchParams }: Params) {
           explorerBaseUrl={getExplorerEnv().EXPLORER_BASE_URL}
           closeHref={`/casos/${detail.code}?pestana=${tab}`}
           profileHref="/perfil"
+          identityVerified={identityVerified}
+          returnHref={`/casos/${detail.code}?pestana=${tab}&apadrinar=1`}
+          initialAmount={monto && /^\d+([.,]\d{1,7})?$/.test(monto) ? monto : undefined}
           // Sin alias todavía, el nombre que se ve es el correo: en ese caso la bienvenida va sin nombre.
           welcome={bienvenida === "1" ? (session.displayName.includes("@") ? "" : session.displayName) : null}
         />

@@ -6,6 +6,7 @@ import { getExplorerEnv } from "@/platform/config/env";
 import { evidenceUrl, getCatalogService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
 import { getDonorView } from "@/platform/db/repositories/donor";
+import { isAccountVerified } from "@/platform/db/repositories/identity";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +29,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function HuellaPage({ params }: Props) {
   const { cuenta } = await params;
   if (!isStellarAccount(cuenta)) notFound();
-  const [view, cases] = await Promise.all([getDonorView(getDb(), cuenta), getCatalogService().listCases()]);
+  const [view, cases, verified] = await Promise.all([
+    getDonorView(getDb(), cuenta),
+    getCatalogService().listCases(),
+    isAccountVerified(getDb(), cuenta),
+  ]);
   const routes = new Map(cases.map((c) => [c.code, c.route]));
 
   return (
     <main className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-8">
-      <DonorHeader name={view.alias ?? "Donante"} account={cuenta} seal={<BadgeCard view={view} sharePath={`/huella/${cuenta}`} />}>
+      <DonorHeader name={view.alias ?? "Donante"} account={cuenta} verified={verified} seal={<BadgeCard view={view} sharePath={`/huella/${cuenta}`} />}>
         <p>
           Estos aportes están en la red Stellar: cualquiera puede comprobarlos en Stellar Expert. Proof of Wild no muestra
           el nombre ni los datos de contacto de nadie.

@@ -6,9 +6,11 @@ const STATUS_BY_CODE: Record<string, number> = {
   validation: 400,
   auth_required: 401,
   forbidden: 403,
+  verification_required: 403,
   not_found: 404,
   invalid_transition: 409,
   contribution_rejected: 422,
+  identity_rejected: 422,
   not_supported: 501,
 };
 

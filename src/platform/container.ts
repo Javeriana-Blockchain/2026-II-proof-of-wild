@@ -1,11 +1,15 @@
+import { createHmac } from "node:crypto";
 import { CatalogService } from "@/modules/catalog";
 import { ContributionService } from "@/modules/contributions";
+import { IdentityService } from "@/modules/identity";
 import { RecordService } from "@/modules/records";
-import { getContractEnv, getExplorerEnv } from "@/platform/config/env";
+import { getContractEnv, getExplorerEnv, getSessionEnv } from "@/platform/config/env";
 import { getDb } from "@/platform/db/client";
 import { DbCatalogReader } from "@/platform/db/repositories/catalog";
 import { DbContributionStore } from "@/platform/db/repositories/contributions";
+import { DbIdentityStore } from "@/platform/db/repositories/identity";
 import { DbRecordStore } from "@/platform/db/repositories/records";
+import { SimulatedIdentityRegistry } from "@/platform/identity/simulated-registry";
 import { SorobanContractLedger } from "@/platform/stellar/contract-ledger";
 import { createEvidenceStorage } from "@/platform/storage";
 
@@ -47,6 +51,18 @@ export const getContractLedger = once(() => {
 export const getContributionService = once(
   () => new ContributionService(getContractLedger(), new DbContributionStore(getDb())),
 );
+
+/**
+ * Verificación de identidad por niveles (ADR-21). El documento se guarda como HMAC con la clave de sesión: así se
+ * detecta un documento usado en dos cuentas sin guardar el número (una cédula se adivina por fuerza bruta si solo
+ * se le aplica SHA-256).
+ */
+export const getIdentityService = once(() => {
+  const secret = getSessionEnv().SESSION_SECRET;
+  return new IdentityService(new SimulatedIdentityRegistry(), new DbIdentityStore(getDb()), {
+    hashDocument: (type, number) => createHmac("sha256", secret).update(`${type}:${number}`).digest("hex"),
+  });
+});
 
 export const getRecordService = once(
   () => new RecordService(getContractLedger(), new DbRecordStore(getDb()), getEvidenceStorage()),

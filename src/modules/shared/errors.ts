@@ -55,3 +55,17 @@ export class AuthRequiredError extends DomainError {
     super(message, "auth_required");
   }
 }
+
+/** La acción exige identidad verificada (nivel 2), por ejemplo un aporte grande (ADR-21). */
+export class VerificationRequiredError extends DomainError {
+  constructor(message: string) {
+    super(message, "verification_required");
+  }
+}
+
+/** El proveedor de identidad no confirmó el documento. */
+export class IdentityRejectedError extends DomainError {
+  constructor(message: string) {
+    super(message, "identity_rejected");
+  }
+}
