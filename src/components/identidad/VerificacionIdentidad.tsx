@@ -317,8 +317,9 @@ export function VerificacionIdentidad({ volver, volverLabel }: { volver: string 
                   className={`block h-1.5 rounded-full transition-colors duration-500 ${done ? "bg-bosque" : current ? "bg-arena" : "bg-arena/30"}`}
                 />
                 <span className={`flex items-center gap-1.5 text-sm ${current ? "font-semibold" : "text-secundario"}`}>
-                  {done ? <IconoCheck className="h-3.5 w-3.5 text-bosque" /> : <span className="cifras">{i + 1}</span>}
-                  {paso.titulo}
+                  {done ? <IconoCheck className="h-3.5 w-3.5 shrink-0 text-bosque" /> : <span className="cifras">{i + 1}</span>}
+                  {/* En el celular solo se lee el paso actual; los demás quedan como número o visto bueno. */}
+                  <span className={current ? "whitespace-nowrap" : "hidden sm:inline"}>{paso.titulo}</span>
                 </span>
               </li>
             );
@@ -446,7 +447,7 @@ export function VerificacionIdentidad({ volver, volverLabel }: { volver: string 
                   // eslint-disable-next-line @next/next/no-img-element -- imagen local en memoria, nunca se sube
                   <img src={docImage} alt="Foto de tu documento" className="h-full w-full object-contain" />
                 ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 border-4 border-dashed border-white/25 text-white/80">
+                  <div className="flex h-full flex-col items-center justify-center gap-3 border-4 border-dashed border-white/25 px-4 text-center text-white/80">
                     <IconoCamara className="h-10 w-10" />
                     <span>Foto del lado de tu documento con tu foto</span>
                   </div>
