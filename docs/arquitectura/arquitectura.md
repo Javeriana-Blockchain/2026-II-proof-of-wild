@@ -1,55 +1,65 @@
 # Proof of Wild · Arquitectura del MVP
 
-Diseño obtenido con ADD 3.0 a partir de los drivers de [`contexto-y-drivers.md`](contexto-y-drivers.md). Vocabulario fijo: **módulo** es una unidad de código con una capacidad de negocio (`modules/cases`); **adaptador** implementa un puerto contra un sistema externo (`platform/stellar`); **puerto** es una interfaz que el dominio necesita (`ports/`).
+Diseño obtenido con ADD 3.0 a partir de los drivers de [`contexto-y-drivers.md`](contexto-y-drivers.md). Vocabulario fijo: **módulo** es una unidad de código con una capacidad de negocio (`modules/contributions`); **puerto** es una interfaz que el dominio necesita del exterior (`ports/`); **adaptador** implementa un puerto contra un sistema externo (`platform/stellar`).
+
+Este documento describe el código actual (rama `feat/rediseno-frontend`, noviembre de 2026). Las decisiones del primer diseño que el brief del 9 de noviembre reemplazó se conservan en la sección 2 como historial.
 
 ## 1. Resumen
 
-Proof of Wild es un **monolito modular en capas con puertos y adaptadores**. Una sola aplicación web sirve la interfaz pública, el portal de centros y validadores y la API. Cada capacidad es un módulo de dominio con reglas puras; todo lo que toca la red Stellar, el almacén de archivos o la base de datos entra por un puerto. Las páginas públicas leen siempre de la base de datos; la red Stellar se consulta solo para confirmar escrituras.
+Proof of Wild es un **monolito modular en capas con puertos y adaptadores**, desplegado como una aplicación Next.js sin estado. Una sola aplicación sirve el sitio público, el perfil del donante, el portal de la ONG y la API. Cada capacidad es un módulo con reglas puras; todo lo que toca la red Stellar o el almacén de evidencias entra por un puerto.
 
-Tres ideas sostienen el diseño:
+Cuatro ideas sostienen el diseño:
 
-1. **La red es la fuente de verdad de pagos y hashes; la base de datos es el modelo de lectura.** Un aporte existe para la plataforma solo después de que el servidor lo lee en Horizon (RN-03).
-2. **Nadie custodia llaves.** Los aportes van directo a la cuenta Stellar verificada del centro y los registros de hash los firman con su billetera quien registra y quien valida. El servidor no guarda ninguna llave secreta.
-3. **Lo privado nunca cruza la frontera pública.** Las respuestas públicas se construyen con una proyección explícita; los soportes están en un almacén privado y las imágenes se limpian de metadatos al subirlas.
+1. **El contrato custodia el dinero y la red es la fuente de verdad.** El contrato `ProofOfWild` (Soroban) guarda los aportes de cada caso, los reparte en orden entre sus etapas y paga al proveedor cuando la ONG registra un gasto. Un aporte, gasto o hito existe para la plataforma solo después de que el servidor lo lee en la red (RN-03).
+2. **La base de datos es el modelo de lectura.** Las páginas leen siempre de PostgreSQL; la red solo está en la ruta de escritura. El servidor guarda una copia de cada transacción antes de enviarla (ADR-12).
+3. **Nadie le entrega sus llaves a la plataforma.** Donantes y ONG firman con su propia billetera; el servidor arma las transacciones sin firmar y nunca guarda llaves secretas.
+4. **Todos tienen cuenta y lo privado no cruza la frontera pública.** Personas y ONG entran con correo y contraseña (SRP-6a); apadrinar exige una cuenta de persona (ADR-16). Las respuestas públicas se construyen con proyecciones explícitas y las fotos pierden sus metadatos al subirlas.
 
 ## 2. Decisiones (ADR)
 
+### Vigentes
+
 | ID | Decisión | Drivers | Alternativas descartadas | Costo |
 |---|---|---|---|---|
-| ADR-01 | Monolito modular en capas con puertos y adaptadores | QA-DEP-01, QA-TST-01, QA-MOD-01, CON-06 | Solo frontend; servicio de base de datos gestionado; microservicios | Más trabajo inicial que las dos primeras; escala como una sola unidad |
-| ADR-02 | Next.js (App Router) con TypeScript y Tailwind; PostgreSQL con Drizzle ORM | QA-RND-01, RF-COM-01, QA-DEP-01 | SPA pura; Astro; Prisma | El comprobante necesita renderizado en servidor para que se vea al compartirlo; Drizzle es más ligero pero menos «mágico» que Prisma |
-| ADR-03 | Aporte único como pago en el activo de prueba tipo USDC, directo a la cuenta Stellar del centro, con memo de texto igual al código del caso | RF-APA-01, QA-USA-01, CON-02 | Contrato por caso; una cuenta Stellar por caso | Sin reglas de desembolso en cadena (llegan en la etapa 2). El saldo disponible lo calcula la plataforma, no la red |
-| ADR-04 | El servidor confirma cada aporte leyendo la transacción en Horizon (destino, activo, monto, memo); es idempotente por hash y una tarea de reconciliación reintenta los pendientes | RN-03, QA-TRZ-01, QA-DIS-01 | Confiar en el hash que envía el navegador; suscripción permanente a flujos de pagos | Consistencia eventual de hasta unos minutos si la red falla |
-| ADR-05 | Anclaje de evidencia: el hash SHA-256 del soporte va en el memo hash de una transacción de anclaje (pago mínimo a sí mismo) firmada por la billetera del centro; la validación repite el anclaje firmada por la billetera del validador | RF-GAS-01, RF-HIT-01, RF-VAL-01, QA-TRZ-01, QA-SEG-02 | Cuenta de registro del servidor con llave secreta; evento de contrato Soroban | Centros y validadores necesitan billetera y cuenta de testnet; más fricción que un servicio central |
-| ADR-06 | Las rutas públicas leen solo de la base de datos; si Horizon falla, se sirven los datos confirmados con aviso de sincronización | QA-RND-01, QA-DIS-01 | Consultar la red en cada visita | Los datos pueden estar atrasados por minutos |
-| ADR-07 | Proyección pública separada del modelo interno; almacén privado de evidencias con acceso por URL firmada de corta vida; limpieza de EXIF al subir | QA-SEG-01, RN-06, RN-07, RN-08 | Servir las evidencias directamente; confiar en que el centro limpie las fotos | Una capa más de mapeo; procesamiento de imagen en el servidor |
-| ADR-08 | Donantes identificados por su billetera, sin cuenta ni contraseña, solo ven datos públicos. Centros, validadores y administradores inician sesión; la autorización por rol se aplica en el servidor y la separación de funciones se refuerza con una restricción de base de datos | QA-SEG-02, RN-01, RN-02 | Autorización solo en la interfaz; cuentas para donantes en el MVP | La autenticación del MVP es mínima; se encapsula en un puerto para cambiarla por un proveedor gestionado |
-| ADR-09 | `PaymentRail` y `EvidenceAnchor` como puertos; el adaptador Stellar clásico los implementa. En la etapa 2 un adaptador Soroban, basado en el contrato `RaizSilvestre` del equipo, implementa los mismos puertos | QA-MOD-01, CON-07 | Llamar al SDK de Stellar desde los módulos | Una indirección adicional |
-| ADR-10 | Una aplicación sin estado, PostgreSQL gestionado y almacén de objetos privado; migraciones versionadas, semillas de los 3 casos ficticios y CI de tipos, pruebas y build | QA-DEP-01, CON-06 | Despliegue manual; contenedores orquestados | Dependencia de servicios gestionados para la demo |
+| ADR-01 | Monolito modular en capas con puertos y adaptadores | QA-DEP-01, QA-TST-01, QA-MOD-01, CON-06 | Solo frontend; servicio de base de datos gestionado; microservicios | Más trabajo inicial; escala como una sola unidad |
+| ADR-02 | Next.js 16 (App Router) con TypeScript y Tailwind; PostgreSQL con Drizzle ORM | QA-RND-01, RF-COM-01, QA-DEP-01 | SPA pura; Astro; Prisma | El comprobante se renderiza en el servidor para compartirlo; Drizzle es más ligero pero menos «mágico» que Prisma |
+| ADR-06 | Las rutas públicas leen solo de la base de datos; la red se consulta para confirmar escrituras | QA-RND-01, QA-DIS-01 | Consultar la red en cada visita | Los datos pueden atrasarse mientras la red confirma |
+| ADR-09 | Puertos para todo lo externo. Hoy `ContractLedger` (contrato Soroban) y `EvidenceStorage`; `PaymentRail` y `EvidenceAnchor` quedan como plan B con el adaptador Stellar clásico | QA-MOD-01, CON-07 | Llamar al SDK de Stellar desde los módulos | Una indirección adicional |
+| ADR-11 | Contrato `ProofOfWild` en Soroban, ampliado desde `RaizSilvestre`: guarda el dinero de cada caso, reparte cada aporte en orden entre las etapas (rechaza lo que supere la meta) y `registrar_gasto` le paga directo al proveedor desde lo cubierto y sin gastar de una etapa y guarda el hash de la factura; `registrar_hito` guarda el hash de la evidencia. Casos por código `POW_001` (Symbol) | RF-APA-01, RF-GAS-01, RF-HIT-01, QA-TRZ-01, CON-07 | Pago directo a la ONG con memo; una cuenta Stellar por caso | La firma doble (ONG y validador) queda para la etapa 2; hay que redesplegar el contrato si cambia |
+| ADR-12 | El servidor guarda una copia de cada transacción con su reparto antes de enviarla (el RPC de Stellar conserva los eventos unos 7 días) y la confirma solo cuando la lee en la red; reenviar la misma transacción bien firmada después de un rechazo la vuelve a intentar | RN-03, QA-DIS-01 | Confiar en lo que informa el navegador | Consistencia eventual mientras la red confirma |
+| ADR-13 | Las facturas (con los datos de terceros tapados) y las fotos de los hitos se publican, para que cualquiera compare su hash con el de la red: doble confirmación | QA-TRZ-01, RN-08 | URL firmadas de corta vida | Las facturas deben subirse ya anonimizadas |
+| ADR-14 | Todos entran con correo y contraseña (persona u ONG) usando SRP-6a: la base solo guarda sal y verificador, la contraseña nunca viaja. Desafíos de un solo uso de 2 minutos, bloqueo tras 5 fallos en 15 minutos, señuelo para correos inexistentes y sesiones guardadas como SHA-256 del token | QA-SEG-01, QA-SEG-02 | Donantes solo por billetera; contraseña en texto al servidor | Recuperar la contraseña exige un flujo por correo (fuera del MVP) |
+| ADR-15 | Script de preparación de testnet (`npm run red:preparar`): cuentas con Friendbot, USDC de prueba y su Stellar Asset Contract, despliegue del contrato, casos y la actividad de los datos de prueba, en minutos | QA-DEP-01, R-02 | Preparar la red a mano | Depende de Friendbot y del RPC público el día que se corre |
+| ADR-16 | Apadrinar exige una cuenta de persona con la sesión iniciada. El servidor lo hace cumplir en `/api/aportes/preparar` y `/api/aportes/enviar` (401 sin sesión, 403 con cuenta de ONG o de administrador). Quien llega sin cuenta ve una invitación con el caso, su ruta y la insignia, y al crear la cuenta o ingresar vuelve al caso con la ventana de apadrinar abierta. La billetera queda ligada al perfil con el primer aporte (firmarlo prueba que es suya) | QA-SEG-02, RF-APA-01, RF-PAN-01 | Aportes anónimos solo con billetera | Un paso más antes del primer aporte; se compensa con el regreso automático al caso |
+| ADR-17 | Las evidencias (facturas y fotos) se guardan en la base de datos (`evidence_files`) por defecto, para que la app siga sin estado en Vercel y viajen con la base; el disco local queda como opción de desarrollo (`EVIDENCE_STORAGE=local`) | QA-DEP-01, ADR-13 | Almacén de objetos aparte | La base crece con los archivos; suficiente para el volumen del MVP |
+| ADR-18 | Despliegue en Vercel con PostgreSQL gestionado en Neon; `main` es producción y cada rama tiene una vista previa privada | QA-DEP-01, CON-06 | Servidor propio; contenedores orquestados | Primera carga lenta cuando Vercel y Neon están dormidos |
+| ADR-19 | El estado de cada etapa (completada, en curso, pendiente) se calcula con lo cubierto, igual que el contrato llena las etapas; no se guarda a mano | QA-TRZ-01, RN-01 | Estado escrito por la ONG o la semilla | La columna `stages.status` queda solo como dato de la semilla |
+| ADR-20 | Frontend de una sola página principal (Inicio, Cómo funciona, Casos y Voluntariados como secciones con menú de anclas); `/casos`, `/como-funciona` y `/voluntariados` redirigen a su sección desde `next.config.ts`. El sistema visual «Mapa de liberación» está en [`DESIGN.md`](../../DESIGN.md) | QA-USA-01 | Una página por sección | Las secciones comparten una sola carga de datos |
 
-### Decisiones por el brief del 9 de noviembre de 2026
+### Reemplazadas por el brief del 9 de noviembre de 2026
 
-El brief consolidado mete en el MVP el contrato en Soroban, las etapas con costo, las cuentas para todos y el voluntariado. Estas decisiones **reemplazan** a ADR-03, ADR-04, ADR-05, ADR-07 y ADR-08, y concretan ADR-09. Las demás siguen vigentes.
-
-| ID | Decisión | Reemplaza | Drivers | Costo |
-|---|---|---|---|---|
-| ADR-11 | Contrato `ProofOfWild` en Soroban, ampliado desde `RaizSilvestre`: guarda el dinero de cada caso, reparte cada aporte en orden entre las etapas (rechaza lo que supere la meta), y `registrar_gasto` le paga directo al proveedor desde lo cubierto y sin gastar de una etapa y guarda el hash de la factura. Casos por código `POW_001` (Symbol) | ADR-03, ADR-05 | RF-APA-01, RF-GAS-01, RF-HIT-01, QA-TRZ-01, CON-07 | La firma doble (ONG y validador) queda para la etapa 2; hay que redesplegar el contrato si cambia |
-| ADR-12 | La página guarda una copia de cada transacción con su reparto al enviarla (el RPC de Stellar conserva los eventos unos 7 días) y la confirma leyendo la red | ADR-04 | RN-03, QA-DIS-01 | Consistencia eventual mientras la red confirma |
-| ADR-13 | Las facturas (con los datos de terceros tapados) y las fotos de los hitos se publican, para que cualquiera compare su hash con el de la red: doble confirmación | ADR-07 (en lo de URL firmadas) | QA-TRZ-01, RN-08 | Las facturas deben subirse ya anonimizadas |
-| ADR-14 | Todos entran con correo y contraseña (persona u ONG) usando SRP-6a: la base solo guarda sal y verificador, la contraseña nunca viaja. Desafíos de un solo uso de 2 minutos, bloqueo tras 5 fallos, señuelo para correos inexistentes y sesiones guardadas como SHA-256 del token | ADR-08 | QA-SEG-01, QA-SEG-02 | Recuperar la contraseña exige un flujo por correo (fuera del MVP) |
-| ADR-15 | Script de preparación de testnet (`npm run red:preparar`): cuentas con Friendbot, USDC de prueba y su Stellar Asset Contract, despliegue del contrato, casos y la actividad de los datos de prueba, en minutos | Concreta ADR-10 | QA-DEP-01, R-02 | Depende de Friendbot y del RPC público el día que se corre |
+| ID | Decisión original | Reemplazada por |
+|---|---|---|
+| ADR-03 | Aporte como pago directo a la cuenta de la ONG con memo igual al código del caso | ADR-11 |
+| ADR-04 | Confirmar leyendo la transacción en Horizon con reconciliación programada de `pending_contributions` | ADR-12 |
+| ADR-05 | Anclar el hash de la evidencia en el memo de un pago mínimo a sí mismo | ADR-11 |
+| ADR-07 | Almacén privado de evidencias con URL firmadas | ADR-13, ADR-17 |
+| ADR-08 | Donantes solo por billetera, sin cuenta | ADR-14, ADR-16 |
+| ADR-10 | Aplicación sin estado, PostgreSQL y almacén de objetos; semillas de 3 casos | ADR-15, ADR-17, ADR-18 (los datos de prueba son ahora 5 casos y 2 ONG) |
 
 ### Tecnologías
 
 | Capa | Elección |
 |---|---|
-| Aplicación | Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS 4 |
-| Datos | PostgreSQL 16, Drizzle ORM y drizzle-kit (migraciones SQL versionadas) |
-| Stellar | `@stellar/stellar-sdk` (Horizon, construcción de transacciones), `@stellar/freighter-api` (billetera en el navegador) |
+| Aplicación | Next.js 16 (App Router, Turbopack), React 19, TypeScript 5, Tailwind CSS 4 |
+| Datos | PostgreSQL 16 (Docker en local, Neon en producción), Drizzle ORM y drizzle-kit (migraciones SQL versionadas) |
+| Contrato | Rust y Soroban SDK (`contracts/proof-of-wild`), con su Stellar Asset Contract para el USDC de prueba |
+| Stellar | `@stellar/stellar-sdk` (RPC de Soroban, Horizon y construcción de transacciones), Stellar Wallets Kit (Freighter, Albedo, xBull, Lobstr, Hana y Rabet en el navegador) |
+| Autenticación | `secure-remote-password` (SRP-6a) y sesiones con cookie httpOnly |
 | Validación | zod para entradas de API y variables de entorno |
-| Imágenes | sharp (re-codifica y elimina EXIF) |
-| Pruebas | Vitest |
-| Local | Docker Compose con PostgreSQL; almacén de evidencias en disco |
+| Imágenes | sharp (re-codifica en WebP y elimina EXIF) |
+| Pruebas | Vitest (dominio, adaptadores e integración con PostgreSQL real) y una prueba de punta a punta en testnet (`npm run red:probar`) |
+| Despliegue | Vercel y Neon; CI en GitHub Actions (tipos, pruebas con PostgreSQL y compilación) |
 
 ## 3. Iteraciones de diseño (ADD)
 
@@ -57,32 +67,34 @@ El brief consolidado mete en el MVP el contrato en Soroban, las etapas con costo
 
 Drivers: CON-06, QA-DEP-01, QA-TST-01, QA-MOD-01, QA-SEG-02.
 
-| Alternativa | Plazo de una semana | Reglas de rol y datos privados (QA-SEG) | Testabilidad | Cambio a contrato en etapa 2 | Veredicto |
+| Alternativa | Plazo | Reglas de rol y datos privados (QA-SEG) | Testabilidad | Contrato Soroban | Veredicto |
 |---|---|---|---|---|---|
-| A. Solo frontend con JSON y lectura de la red | Mejor | No cumple: sin servidor no se pueden hacer cumplir roles ni guardar privados; lo registrado se pierde al recargar | Parcial | Parcial | Descartada |
-| B. Frontend con servicio de base de datos gestionado | Muy bueno | Parcial: reglas de acceso en configuración difíciles de probar; la limpieza de imágenes requiere funciones adicionales | Parcial | Parcial: acoplamiento al proveedor | Descartada |
+| A. Solo frontend con JSON y lectura de la red | Mejor | No cumple: sin servidor no se pueden hacer cumplir roles ni guardar privados | Parcial | Parcial | Descartada |
+| B. Frontend con servicio de base de datos gestionado | Muy bueno | Parcial: reglas de acceso en configuración difíciles de probar | Parcial | Parcial: acoplamiento al proveedor | Descartada |
 | C. Monolito modular con backend propio | Bueno | Cumple | Cumple | Cumple (puertos) | **Elegida** |
 | D. Servicios separados | Malo | Cumple | Cumple | Cumple | Descartada: sin driver de escalabilidad que lo justifique |
 
-Trade-off aceptado: más trabajo que A y B. Se compensa con la estructura de carpetas ya definida, el orden de construcción del brief y la ausencia de un servicio extra que operar.
+Trade-off aceptado: más trabajo que A y B, compensado con la estructura de carpetas y la ausencia de un servicio extra que operar.
 
 ### Iteración 2 · Funcionalidad primaria: apadrinar
 
 Drivers: RF-APA-01/02, RF-COM-01, QA-USA-01, RN-03.
 
-- El servidor construye la transacción sin firmar, la billetera la firma y el navegador la envía a Horizon; después informa el hash al servidor. El servidor **no confía** en el navegador: lee la transacción y comprueba destino, activo, monto y memo (ADR-04).
-- `contributions.tx_hash` es único: confirmar dos veces no duplica el aporte.
-- Si la cuenta del donante no tiene la línea de confianza del activo, el flujo la agrega en la misma transacción.
-- El comprobante se identifica por el hash de la transacción y se renderiza en servidor con metadatos para compartir en redes.
+- Apadrinar exige una cuenta de persona (ADR-16). Sin sesión, la ventana de apadrinar se reemplaza por una invitación a crear la cuenta o ingresar que vuelve al caso.
+- El servidor arma la transacción `aportar` sin firmar, la simula y calcula el reparto previsto por etapa (`allocateContribution`), que la persona ve antes de firmar.
+- La billetera firma; el servidor guarda la copia como `enviada`, la envía al RPC y la lee en la red. El reparto que vale es el que devolvió el contrato en su evento, guardado en `contribution_allocations`.
+- `contributions.tx_hash` es único: confirmar dos veces no duplica el aporte. Si la red rechaza una firma y luego llega la misma transacción bien firmada, se vuelve a enviar (ADR-12).
+- El comprobante se identifica por el hash de la transacción y se renderiza en el servidor con metadatos para compartir.
 
 ### Iteración 3 · Trazabilidad e integridad
 
 Drivers: QA-TRZ-01, RF-GAS-01, RF-HIT-01, RF-VAL-01.
 
-- El hash de evidencia es SHA-256 del archivo de soporte; si el hito no tiene archivo, es SHA-256 del JSON canónico del registro.
-- Estados de un gasto: `borrador` (subido, sin ancla) → `pendiente` (anclado por el centro) → `verificado` (anclado por un validador) o `rechazado`. Solo `pendiente` y `verificado` son públicos (RN-01).
-- Niveles de validación de un hito: presentado por el centro, revisado por un profesional, verificado de forma independiente (este último llega después del MVP).
-- El servidor verifica cada ancla leyendo la transacción: cuenta origen igual a la cuenta registrada del centro o del validador, y memo hash igual al hash guardado.
+- El hash de evidencia es SHA-256 del archivo (factura o foto ya limpia); si el hito no tiene archivo, es SHA-256 del JSON canónico del registro.
+- `registrar_gasto` paga al proveedor desde lo cubierto y sin gastar de la etapa y guarda el hash de la factura; `registrar_hito` guarda el hash de la evidencia. El servidor confirma leyendo la invocación en la red.
+- Factura, foto y transacción son públicas (ADR-13): cualquiera compara el hash publicado con el del contrato en Stellar Expert.
+- Niveles de validación: presentado por la ONG, revisado por un profesional y verificado de forma independiente. En el MVP el nivel lo fija la ONG o la semilla; la validación con firma de un tercero llega en la etapa 2.
+- El estado de cada etapa se deriva de lo cubierto (ADR-19), así una etapa «completada» siempre muestra su costo cubierto.
 
 ### Iteración 4 · Seguridad y privacidad
 
@@ -90,31 +102,32 @@ Drivers: QA-SEG-01, QA-SEG-02, RN-04 a RN-08.
 
 | Táctica | Dónde se aplica |
 |---|---|
-| Limit exposure | Proyección pública explícita (`toPublic…`) por módulo; los modelos internos nunca se serializan directamente |
-| Separate entities | Almacén de evidencias privado; datos personales solo en la base de datos |
-| Validate input | zod en cada ruta de API; el memo se valida a 28 bytes antes de construir la transacción |
-| Authenticate y authorize actors | Sesión para centros, validadores y administradores; verificación de rol en el servidor en cada operación |
-| Limit access | URLs firmadas de corta vida para soportes privados |
-| Audit y nonrepudiation | Tabla `audit_log`; las firmas de centro y validador quedan en la red |
-| Encrypt data | TLS en tránsito; cifrado en reposo del proveedor |
+| Limit exposure | Proyecciones públicas explícitas en `modules/catalog` y en los repositorios de lectura; los modelos internos nunca se serializan |
+| Authenticate actors | SRP-6a (ADR-14): la contraseña nunca sale del navegador; sesiones como hash del token, 8 horas |
+| Authorize actors | Rol en el servidor: apadrinar exige persona (ADR-16); el portal y sus rutas exigen una ONG aprobada y solo operan sus propios casos |
+| Validate input | zod en cada ruta de API y acción del servidor; códigos de caso y cuentas Stellar con `CHECK` en la base |
+| Sanitize | Fotos re-codificadas sin EXIF; solo tipos de archivo permitidos y tamaño máximo |
+| Nonrepudiation | Las firmas de donantes y ONG quedan en la red |
+| Encrypt data | TLS en tránsito; cifrado en reposo del proveedor (Neon) |
 
-Decisión de menor superficie: el servidor del MVP **no guarda llaves secretas de Stellar**. Las cuentas de demo se fondean fuera de la aplicación y cada persona firma con su billetera.
+Decisión de menor superficie: la aplicación **no guarda llaves secretas de Stellar**. Las llaves de las cuentas de prueba viven en `.data/cuentas-demo.json` (fuera de git) y solo las usan los scripts de testnet.
 
 ### Iteración 5 · Resiliencia
 
 Drivers: QA-DIS-01, QA-RND-01.
 
 - Lectura desde la base de datos (ADR-06). La red solo está en la ruta de escritura.
-- Adaptador Stellar con tiempo máximo de espera, reintentos con espera creciente y un corte de circuito simple.
-- Los aportes enviados pero no confirmados se guardan en `pending_contributions`; una tarea programada llama a `/api/jobs/reconcile` y los reintenta. Si la red demuestra que no cumplen, se descartan.
-- Aviso «última sincronización hace N minutos» cuando hay pendientes antiguos.
+- Copia antes de enviar (ADR-12): si la red tarda, el aporte queda `enviada` y el navegador consulta `/api/aportes/{hash}`, que vuelve a leer la red hasta confirmarlo o marcarlo `fallida` con su motivo.
+- Health check en `/api/health` (con `?deep=1` prueba la base de datos).
+- Pantallas de carga, error y estados vacíos en el sitio, para que una lectura lenta no deje la página en blanco.
 
-### Iteración 6 · Modificabilidad hacia la etapa 2
+### Iteración 6 · Modificabilidad
 
 Drivers: QA-MOD-01, CON-07.
 
-- Los módulos solo conocen `PaymentRail` y `EvidenceAnchor`. El adaptador Soroban reemplaza al clásico y asociará aportes a casos, aplicará permisos, emitirá eventos y exigirá dos firmas para desembolsar, tomando como base el contrato `RaizSilvestre` ya probado.
-- Cambia la unidad de custodia (de la cuenta del centro al contrato), no los módulos de dominio.
+- Los módulos solo conocen `ContractLedger` y `EvidenceStorage`. El paso del pago directo al contrato (CON-07) se hizo cambiando el adaptador y los servicios de aportes y registros, sin tocar las reglas de `modules/cases`.
+- El adaptador clásico (`PaymentRail`, `EvidenceAnchor`) sigue compilando como plan B si el RPC de Soroban falla el día de la demo.
+- Lo siguiente (firma doble, validadores, cierre de caso) cabe en el contrato y en `modules/records` sin cambiar el modelo de lectura.
 
 ## 4. Vistas
 
@@ -128,150 +141,172 @@ Ver el diagrama de contexto en [`contexto-y-drivers.md`](contexto-y-drivers.md#2
 flowchart LR
   subgraph NAV["Navegador"]
     UI["Interfaz web React"]
-    WAL["Billetera Freighter"]
+    WAL["Billetera<br/>Freighter, Albedo, xBull"]
   end
-  subgraph APP["Aplicacion web Next.js"]
-    PRES["Presentacion<br/>paginas y rutas API"]
-    MOD["Modulos de dominio<br/>casos, aportes, gastos,<br/>hitos, centros, donantes"]
-    PORTS["Puertos<br/>PaymentRail, EvidenceAnchor,<br/>EvidenceStorage, repositorios"]
-    ADP["Adaptadores<br/>Stellar clasico, base de datos,<br/>almacen de archivos, sesion"]
+  subgraph APP["Aplicacion Next.js en Vercel"]
+    PRES["Presentacion<br/>paginas, acciones y rutas API"]
+    MOD["Modulos<br/>catalog, cases,<br/>contributions, records"]
+    PORTS["Puertos<br/>ContractLedger,<br/>EvidenceStorage"]
+    ADP["Adaptadores<br/>Soroban, base de datos,<br/>evidencias, autenticacion"]
   end
-  PG[("PostgreSQL")]
-  OBJ[("Almacen de evidencias")]
-  HZ["Horizon testnet"]
+  PG[("PostgreSQL<br/>Neon")]
+  RPC["RPC de Soroban<br/>testnet"]
+  SC["Contrato ProofOfWild<br/>y USDC de prueba"]
+  EX["Stellar Expert"]
   UI --> PRES
   UI --> WAL
   WAL -->|firma| UI
-  UI -->|envia transaccion firmada| HZ
   PRES --> MOD
   MOD --> PORTS
   ADP -.implementa.-> PORTS
   ADP --> PG
-  ADP --> OBJ
-  ADP -->|lee y construye| HZ
+  ADP -->|arma, envia y lee| RPC
+  RPC --> SC
+  UI -->|enlaces de verificacion| EX
 ```
 
 | Elemento | Responsabilidad | Interfaz principal |
 |---|---|---|
-| Presentación (`app/`) | Páginas públicas, portal privado, rutas API, validación de entrada | HTTP |
-| `modules/catalog` | Lado de lectura público: arma catálogo, detalle, línea de tiempo y panel de transparencia solo con proyecciones públicas | `CatalogService.list`, `CatalogService.detail` |
-| `modules/cases` | Casos, progreso de financiación, regla de especie y proyección pública | `toPublicCase`, `fundingProgress` |
-| `modules/contributions` | Aportes, confirmación contra la red, envíos pendientes y reconciliación | `prepare`, `confirm`, `reconcile` |
-| `modules/expenses` | Gastos, ciclo de vida, validación y saldo disponible | `register`, `confirmAnchor`, `confirmValidation`, `summary` |
-| `modules/milestones` | Hitos, línea de tiempo y niveles de validación (el servicio de registro sigue el patrón de gastos y está por construir) | `buildTimeline` |
-| `modules/centers` | Centros, cuenta Stellar verificada, perfil | `getPublicCenter` |
-| `modules/donors` | Donantes por billetera y panel (por construir) | — |
-| `ports/` | Contratos de lo que el dominio necesita del exterior | TypeScript |
-| `platform/stellar` | Adaptador Horizon: construye transacciones, lee y verifica pagos y anclas | `PaymentRail`, `EvidenceAnchor` |
-| `platform/db` | Esquema, migraciones, repositorios, semillas | Repositorios |
-| `platform/storage` | Almacén privado, URLs firmadas, limpieza de imágenes | `EvidenceStorage` |
-| `platform/auth` | Sesión y roles | `getSession`, `requireRole` |
+| Presentación (`app/`) | Página principal única, detalle del caso, perfiles, portal, comprobante, rutas API y acciones del servidor | HTTP |
+| `modules/catalog` | Lado de lectura público: catálogo con la ruta de cada caso, detalle, línea de tiempo, transparencia, comprobante y «Tu aporte» | `CatalogService` |
+| `modules/cases` | Reglas puras: código de caso, reparto de un aporte entre etapas, lo que falta, progreso y estado de cada etapa | `allocateContribution`, `stageStatusesFromFunding` |
+| `modules/contributions` | Aportes: preparar, enviar, confirmar leyendo la red y reconciliar | `ContributionService.prepare`, `submit`, `refresh` |
+| `modules/records` | Gastos e hitos de la ONG: subir la evidencia, armar la transacción, enviar y confirmar | `RecordService.prepareExpense`, `prepareMilestone`, `submit`, `refresh` |
+| `modules/shared` | Errores de dominio, actor de la ONG y utilidades de etapas | — |
+| `ports/` | Contratos de lo que el dominio necesita del exterior | `ContractLedger`, `EvidenceStorage` (y `PaymentRail`, `EvidenceAnchor` del plan B) |
+| `platform/stellar` | Cliente del contrato y adaptador Soroban (`contract-ledger.ts`); adaptador clásico del plan B | `ContractLedger` |
+| `platform/db` | Esquema, migraciones, repositorios de lectura y escritura, datos de prueba y semillas | Repositorios |
+| `platform/storage` | Evidencias en la base (`db-storage`) o en disco (`local-storage`), limpieza de imágenes y reglas de subida | `EvidenceStorage` |
+| `platform/auth` | Registro y SRP-6a, sesiones y roles | `registerAccount`, `startLogin`, `finishLogin`, `findSessionUser` |
+| `platform/config` | Variables de entorno validadas con zod | `get…Env` |
+| `platform/container.ts` | Raíz de composición: une servicios y adaptadores | `getCatalogService`, `getContributionService`, `getRecordService` |
+
+Rutas API:
+
+| Ruta | Para qué |
+|---|---|
+| `POST /api/aportes/preparar` | Transacción `aportar` sin firmar y reparto previsto (exige persona) |
+| `POST /api/aportes/enviar` | Recibe la transacción firmada, guarda la copia, la envía y la confirma; liga la billetera al perfil (exige persona) |
+| `GET /api/aportes/{hash}` | Estado de un aporte enviado; vuelve a leer la red |
+| `GET /api/casos/{codigo}/mi-aporte` | «Tu aporte» por etapa para la billetera conectada |
+| `POST /api/portal/gastos/preparar`, `POST /api/portal/hitos/preparar` | Suben la evidencia y arman `registrar_gasto` o `registrar_hito` (exige ONG aprobada) |
+| `POST /api/portal/registros/enviar`, `GET /api/portal/registros/{tipo}/{id}` | Envían y confirman el gasto o el hito |
+| `GET /api/evidencias/{clave}` | Sirve una factura o foto pública |
+| `GET /api/health` | Salud del servicio y de la base |
 
 ### 4.3 Modelo de datos
 
-Todo vive en la base de datos; en Stellar solo van pagos y hashes. Los montos usan 7 decimales, como Stellar.
+En la base viven los datos de dominio, las cuentas y las evidencias; en Stellar, el dinero, los repartos y los hashes. Los montos usan 7 decimales, como Stellar.
 
 ```mermaid
 erDiagram
-  CENTER ||--o{ CASE : atiende
-  CENTER ||--o{ APP_USER : emplea
-  CASE ||--|{ NEED : desglosa
-  CASE ||--o{ CONTRIBUTION : recibe
-  CASE ||--o{ PENDING_CONTRIBUTION : espera
-  DONOR ||--o{ CONTRIBUTION : realiza
-  CASE ||--o{ EXPENSE : registra
-  CASE ||--o{ MILESTONE : registra
-  APP_USER ||--o{ EXPENSE : registra_o_valida
-  APP_USER ||--o{ MILESTONE : registra_o_valida
-  CENTER {
+  USERS ||--o| PERSON_PROFILES : tiene
+  USERS ||--o| NGOS : administra
+  USERS ||--o{ SESSIONS : abre
+  USERS ||--o{ AUTH_CHALLENGES : inicia
+  NGOS ||--o{ CASES : atiende
+  NGOS ||--o{ VOLUNTEERINGS : publica
+  NGOS ||--o{ PROVIDER_NGOS : trabaja_con
+  PROVIDERS ||--o{ PROVIDER_NGOS : provee
+  CASES ||--|{ STAGES : tiene
+  CASES ||--o{ CONTRIBUTIONS : recibe
+  CONTRIBUTIONS ||--|{ CONTRIBUTION_ALLOCATIONS : se_reparte
+  STAGES ||--o{ CONTRIBUTION_ALLOCATIONS : cubre
+  STAGES ||--o{ EXPENSES : paga
+  STAGES ||--o{ MILESTONES : registra
+  PROVIDERS ||--o{ EXPENSES : cobra
+  VOLUNTEERINGS ||--o{ ENROLLMENTS : recibe
+  USERS ||--o{ ENROLLMENTS : se_inscribe
+  USERS {
     uuid id PK
-    text name
-    text city
-    text stellar_account
-    text domain
-    text verification_status
+    text email UK
+    text role
+    text srp_salt
+    text srp_verifier
   }
-  CASE {
+  PERSON_PROFILES {
+    uuid user_id PK
+    text alias
+    text stellar_account UK
+    boolean show_alias
+    timestamptz completed_at
+  }
+  NGOS {
+    uuid id PK
+    text slug UK
+    text name
+    text stellar_account
+    text status
+  }
+  CASES {
     uuid id PK
     text code UK
-    uuid center_id FK
-    text species
+    uuid ngo_id FK
+    text common_name
     boolean species_public
-    date intake_date
-    text initial_state
-    numeric goal_amount
-    text current_stage
-    text final_destination
+    text status
+    text outcome
   }
-  NEED {
+  STAGES {
     uuid id PK
     uuid case_id FK
-    text category
-    numeric budget_amount
+    int position
+    text name
+    numeric cost
+    text photo_path
   }
-  CONTRIBUTION {
+  CONTRIBUTIONS {
     uuid id PK
     uuid case_id FK
-    uuid donor_id FK
+    text donor_account
     numeric amount
-    text asset_code
     text tx_hash UK
-    text kind
+    text status
     timestamptz confirmed_at
   }
-  PENDING_CONTRIBUTION {
-    text tx_hash PK
-    uuid case_id FK
-    int attempts
-    text last_error
-    timestamptz submitted_at
-    timestamptz last_attempt_at
-  }
-  EXPENSE {
-    uuid id PK
-    uuid case_id FK
-    text category
+  CONTRIBUTION_ALLOCATIONS {
+    uuid contribution_id FK
+    uuid stage_id FK
     numeric amount
-    text support_key
-    text support_hash
+  }
+  EXPENSES {
+    uuid id PK
+    uuid stage_id FK
+    uuid provider_id FK
+    numeric amount
+    text invoice_key
+    text invoice_hash
+    text tx_hash
     text status
-    uuid registered_by FK
-    uuid validated_by FK
-    text anchor_tx_hash
-    text validation_tx_hash
-  }
-  MILESTONE {
-    uuid id PK
-    uuid case_id FK
-    text stage
-    date occurred_at
-    text description
-    text evidence_key
-    text evidence_hash
     text validation_level
-    uuid registered_by FK
-    uuid validated_by FK
-    text anchor_tx_hash
-    text validation_tx_hash
   }
-  DONOR {
+  MILESTONES {
     uuid id PK
-    text stellar_account UK
-    text display_name
-    text email
+    uuid stage_id FK
+    text description
+    text photo_key
+    text evidence_hash
+    text tx_hash
+    text status
+    text validation_level
   }
-  APP_USER {
+  VOLUNTEERINGS {
     uuid id PK
-    text role
-    uuid center_id FK
-    text email UK
-    text stellar_account
+    uuid ngo_id FK
+    date date
+    int capacity
+  }
+  ENROLLMENTS {
+    uuid id PK
+    uuid volunteering_id FK
+    uuid user_id FK
+    text availability
   }
 ```
 
-`contributions` solo contiene aportes que el servidor ya leyó en la red (`confirmed_at` es la fecha de la transacción). Los envíos que la red aún no muestra, o que no se pudieron leer, esperan en `pending_contributions` hasta que la reconciliación los confirme.
+Otras tablas: `donors` (alias público de una billetera que aporta), `evidence_files` (facturas y fotos, ADR-17) y `audit_log` (definida, todavía sin uso).
 
-Restricciones que la base de datos hace cumplir: `contributions.tx_hash` único, `CHECK (registered_by <> validated_by)` en gastos e hitos (RN-02), y estados de gasto restringidos a un conjunto cerrado. Además existe `audit_log` (actor, acción, entidad, fecha, datos).
+Estados de una transacción (`contributions`, `expenses`, `milestones`): `enviada` → `confirmada` o `fallida`. Restricciones que la base hace cumplir: hashes únicos y en hexadecimal, cuentas Stellar con formato válido, código de caso `POW_000`, montos y costos positivos, un aporte confirmado siempre tiene fecha y un gasto confirmado siempre tiene transacción.
 
 ### 4.4 Flujo de apadrinamiento
 
@@ -280,113 +315,109 @@ sequenceDiagram
   actor D as Donante
   participant UI as Interfaz web
   participant API as Aplicacion web
-  participant W as Freighter
-  participant H as Horizon testnet
+  participant W as Billetera
+  participant R as RPC de Soroban
   participant DB as Base de datos
-  D->>UI: elige monto en el caso POW-001
-  UI->>API: solicita transaccion de aporte
-  API->>H: lee cuenta del donante y linea de confianza
-  API-->>UI: transaccion sin firmar con memo POW-001
+  D->>UI: pulsa Apadrinar en POW_001
+  alt sin sesion de persona
+    UI-->>D: invitacion a crear cuenta o ingresar
+    D->>UI: crea la cuenta o ingresa (SRP-6a)
+    UI-->>D: vuelve al caso con la ventana abierta
+  end
+  D->>UI: elige el monto
+  UI->>API: preparar aporte
+  API->>R: simula aportar
+  API-->>UI: transaccion sin firmar y reparto previsto
   UI->>W: pide firma
   D->>W: revisa y aprueba
   W-->>UI: transaccion firmada
-  UI->>H: envia la transaccion
-  UI->>API: informa el hash de la transaccion
-  API->>H: lee la transaccion
-  API->>API: valida destino, activo, monto y memo
-  API->>DB: guarda el aporte confirmado, unico por hash
-  API-->>UI: comprobante con enlace al explorador
+  UI->>API: enviar la transaccion firmada
+  API->>DB: guarda la copia como enviada
+  API->>R: envia y lee el resultado
+  API->>DB: confirmada con el reparto del contrato y billetera ligada al perfil
+  API-->>UI: comprobante con enlace a Stellar Expert
 ```
 
-### 4.5 Flujo de registro y validación de un gasto o hito
+### 4.5 Flujo de un gasto o un hito
 
 ```mermaid
 sequenceDiagram
-  actor C as Centro
-  actor V as Validador
+  actor O as ONG
   participant API as Aplicacion web
-  participant S as Almacen privado
-  participant W as Freighter
-  participant H as Horizon testnet
   participant DB as Base de datos
-  C->>API: sube soporte y datos del gasto
-  API->>S: guarda el archivo sin metadatos
-  API->>DB: crea registro en borrador con hash SHA-256
-  API-->>C: transaccion de anclaje sin firmar
-  C->>W: firma con la cuenta del centro
-  W->>H: envia anclaje con memo hash
-  C->>API: informa el hash de la transaccion
-  API->>H: verifica cuenta origen y memo hash
-  API->>DB: estado pendiente, visible como pendiente
-  V->>API: revisa el soporte por URL firmada
-  V->>W: firma con la cuenta del validador
-  W->>H: envia anclaje de validacion
-  V->>API: informa el hash de la transaccion
-  API->>API: rechaza si validador es quien registro
-  API->>H: verifica cuenta origen y memo hash
-  API->>DB: estado verificado
+  participant W as Billetera
+  participant R as RPC de Soroban
+  O->>API: datos del gasto y factura (o hito y foto)
+  API->>API: limpia la imagen y calcula el hash SHA-256
+  API->>DB: guarda la evidencia y el registro como enviado
+  API-->>O: registrar_gasto o registrar_hito sin firmar
+  O->>W: firma con la cuenta de la ONG
+  W-->>O: transaccion firmada
+  O->>API: envia la transaccion firmada
+  API->>R: envia y lee el resultado
+  Note over R: registrar_gasto paga al proveedor<br/>y guarda el hash de la factura
+  API->>DB: confirmado; visible en la linea de tiempo y la transparencia
 ```
 
-### 4.6 Despliegue conceptual
+### 4.6 Despliegue
 
 ```mermaid
 flowchart LR
   subgraph CLI["Cliente"]
-    NAV["Navegador con Freighter"]
+    NAV["Navegador con billetera"]
   end
-  subgraph PLA["Plataforma"]
-    APP["Aplicacion web sin estado<br/>una o mas instancias"]
-    JOB["Tarea programada<br/>de reconciliacion"]
+  subgraph VER["Vercel"]
+    APP["Next.js sin estado<br/>funciones del servidor"]
   end
-  subgraph DAT["Datos"]
-    PG[("PostgreSQL gestionado")]
-    OBJ[("Almacen de objetos privado")]
+  subgraph DAT["Neon"]
+    PG[("PostgreSQL<br/>datos y evidencias")]
   end
-  HZ["Horizon testnet"]
+  RPC["RPC de Soroban testnet"]
+  EX["Stellar Expert"]
   NAV --> APP
-  NAV --> HZ
+  NAV --> EX
   APP --> PG
-  APP --> OBJ
-  APP --> HZ
-  JOB --> APP
+  APP --> RPC
 ```
 
-La aplicación no guarda estado local, así que puede replicarse. Las migraciones y las semillas de los 3 casos ficticios se ejecutan con un comando antes de arrancar.
+`main` se despliega a producción en Vercel y cada rama tiene una vista previa privada. Variables de producción: `DATABASE_URL`, `SESSION_SECRET`, `CONTRACT_ID`, `ASSET_CODE`, `ASSET_ISSUER` y `ASSET_CONTRACT_ID`. En local, PostgreSQL corre en Docker (`npm run db:up`) y `npm run red:preparar` deja la red y la base listas.
 
 ## 5. Estructura del repositorio y reglas de dependencia
 
 ```text
+contracts/proof-of-wild/  Contrato Soroban (Rust) y sus pruebas
+scripts/                  Red de pruebas (preparar, probar, enviar USDC), imágenes y fotos
 src/
-  app/            Presentación (Next.js): páginas, layouts y rutas API
-  components/     Componentes de interfaz reutilizables
-  modules/        Dominio y aplicación, un directorio por capacidad
-    <modulo>/     domain.ts (reglas puras) · service.ts (casos de uso) ·
-                  repository.ts (puerto de persistencia) · index.ts (API pública)
-  ports/          Puertos compartidos: PaymentRail, EvidenceAnchor, EvidenceStorage
-  platform/       Adaptadores y configuración
-    db/  stellar/  storage/  auth/  config/  container.ts (raíz de composición)
-  lib/            Utilidades sin lógica de negocio
-docs/arquitectura/  Contexto, drivers y arquitectura
-tests/            Pruebas de reglas de dominio y de adaptadores
+  app/            Presentación (Next.js): páginas, layouts, acciones y rutas API
+  components/     Interfaz: inicio, casos, huella, mapa (ruta y curvas de nivel),
+                  movimiento (aparición al hacer scroll), estados, sitio, billetera
+  modules/        Dominio y aplicación por capacidad (cases, catalog, contributions, records, shared)
+  ports/          Puertos que el dominio necesita del exterior
+  platform/       Adaptadores: db, stellar, storage, auth, config y container.ts
+  lib/            Utilidades sin lógica de negocio (montos, hashes, cuentas, explorador)
+public/           Fotos de la demo (sin EXIF), fotos por etapa y logo
+drizzle/          Migraciones SQL
+docs/arquitectura Contexto, drivers y esta arquitectura
+tests/            Dominio, adaptadores e integración con PostgreSQL
 ```
 
 | Regla | Qué impide |
 |---|---|
-| `modules/` importa solo de `ports/` y `lib/` | Que el dominio dependa de Stellar, de la base de datos o de Next.js |
-| `platform/` implementa `ports/` y no importa `modules/` | Dependencias circulares |
-| Solo `platform/container.ts` conoce módulos y adaptadores a la vez | Que el cableado se disperse |
-| `app/` usa módulos solo por su `index.ts` | Que la presentación llame a repositorios directamente |
+| `modules/` importa solo de `ports/`, `lib/` y otros módulos por su `index.ts` | Que el dominio dependa de Stellar, de la base o de Next.js |
+| `platform/` implementa los puertos y los repositorios que declaran los módulos (importa sus tipos), nunca al revés | Dependencias circulares |
+| Solo `platform/container.ts` une servicios y adaptadores | Que el cableado se disperse |
+| `app/` usa servicios del contenedor y módulos por su `index.ts`; las lecturas simples usan repositorios de `platform/db` | Que la presentación tenga reglas de negocio |
 
 ## 6. Trazabilidad
 
-| Driver | Escenario | Decisión | Elementos | Vista | Evidencia prevista |
+| Driver | Escenario | Decisión | Elementos | Vista | Evidencia |
 |---|---|---|---|---|---|
-| Promesa del producto | QA-TRZ-01 | ADR-04, ADR-05 | `contributions`, `expenses`, `milestones`, `platform/stellar` | 4.4, 4.5 | Prueba de verificación con transacciones de testnet |
-| Datos sensibles | QA-SEG-01 | ADR-07 | proyecciones públicas, `platform/storage` | 4.2, 4.3 | Prueba de contrato de la API pública; prueba de EXIF |
-| Regla clave | QA-SEG-02 | ADR-08 | `modules/expenses`, `modules/milestones`, restricción `CHECK` | 4.3, 4.5 | Pruebas de dominio y de base de datos |
-| Demo en red pública | QA-DIS-01 | ADR-04, ADR-06 | lectura desde base de datos, reconciliación | 4.6 | Prueba con adaptador simulado caído |
-| Etapa 2 | QA-MOD-01 | ADR-09 | `ports/`, `platform/stellar` | 4.2 | Segundo adaptador sin cambios en `modules/` |
-| Velocidad | QA-TST-01, QA-DEP-01 | ADR-01, ADR-10 | `modules/*/domain.ts`, CI, semillas | 5 | Suite de dominio sin red y CI en verde |
+| Promesa del producto | QA-TRZ-01 | ADR-11, ADR-12, ADR-13 | contrato, `modules/contributions`, `modules/records`, `platform/stellar` | 4.4, 4.5 | `npm run red:probar`: 27 comprobaciones en testnet (reparto, pago al proveedor, hashes de factura y foto) |
+| Datos sensibles | QA-SEG-01 | ADR-13, ADR-14 | proyecciones de `modules/catalog`, `platform/storage` | 4.2, 4.3 | Pruebas de integración (sin identificadores ni datos personales en lo público) y de EXIF |
+| Cuentas y roles | QA-SEG-02 | ADR-14, ADR-16 | `platform/auth`, `app/api/_lib/donante.ts`, portal | 4.4 | Pruebas de SRP y sesiones; 401 y 403 en las rutas de aportes |
+| Demo en red pública | QA-DIS-01 | ADR-06, ADR-12 | lectura desde la base, copia antes de enviar | 4.6 | Pruebas de aportes con reenvío y confirmación tardía |
+| Contrato | QA-MOD-01 | ADR-09, ADR-11 | `ports/`, `platform/stellar` | 4.2 | Paso del pago clásico al contrato sin cambios en `modules/cases` |
+| Velocidad | QA-TST-01, QA-DEP-01 | ADR-01, ADR-15, ADR-18 | `modules/*`, scripts, Vercel | 5 | 93 pruebas en segundos; despliegue al fusionar en `main` |
 
 ## 7. Evaluación ligera (ATAM reducido)
 
@@ -407,29 +438,33 @@ Evaluación hecha por el propio equipo con escenarios y riesgos; no sustituye un
 
 | ID | Riesgo | Causa (decisión) | Mitigación |
 |---|---|---|---|
-| R-01 | Centros y validadores deben instalar una billetera y tener cuenta de testnet; el día de la demo puede fallar | ADR-05 | Cuentas de demo preparadas y probadas con anticipación; ensayo el jueves 12 |
-| R-02 | La testnet se reinicia y los hashes guardados dejan de existir en la red | CON-01 | Guardar hashes en la base de datos, tarea de reconciliación, no depender de datos de testnet antiguos |
-| R-03 | Autenticación mínima para centros y validadores | ADR-08 | Puerto de sesión; reemplazar por un proveedor gestionado antes de un piloto real |
-| R-04 | El saldo disponible lo calcula la plataforma (aportes menos gastos verificados) y puede no coincidir con lo que hay en la cuenta del centro | ADR-03 | Mostrar el saldo como «declarado por el centro y verificado por la plataforma»; la custodia por contrato llega en la etapa 2 |
-| R-05 | Alcance grande para una semana | CON-06 | Seguir el orden del brief: aporte completo, luego hitos y gastos, luego panel y perfil |
-| R-06 | Un hash no prueba que la factura sea auténtica | RN-10 | Decirlo en la interfaz y en el pitch |
+| R-01 | Donantes y ONG deben tener una billetera con cuenta de testnet; el día de la demo puede fallar | ADR-11 | Cuentas de demo preparadas; `npm run red:usdc` para fondear billeteras nuevas; ensayo previo |
+| R-02 | Lo hecho en la red no se puede borrar: un ensayo deja los casos fuera del estado inicial, y la testnet se reinicia periódicamente | CON-03, ADR-15 | Ensayar con un contrato propio y volver a correr `npm run red:preparar` antes de la demo, actualizando Neon y las variables de Vercel |
+| R-03 | Sin recuperación de contraseña | ADR-14 | Ayuda por correo durante la demo; flujo por correo después del MVP |
+| R-04 | Un hash no prueba que la factura sea auténtica | RN-10 | Decirlo en la interfaz y en el pitch; niveles de validación visibles |
+| R-05 | Si el RPC tarda más que la espera del servidor, el aporte queda `enviada` hasta que alguien vuelva a consultarlo | ADR-12 | El navegador sigue consultando; `reconcile()` existe pero aún no hay tarea programada |
+| R-06 | Primera carga lenta cuando Vercel y Neon están dormidos | ADR-18 | Abrir la página unos minutos antes de presentar |
 
 ### Puntos de sensibilidad y trade-offs
 
 | ID | Tipo | Descripción |
 |---|---|---|
-| S-01 | Sensibilidad | La frecuencia de reconciliación determina cuánto tarda en confirmarse un aporte tras una caída de la red (QA-DIS-01) |
-| S-02 | Sensibilidad | El tamaño de las imágenes y su procesamiento en servidor afecta el tiempo de subida (QA-USA-01) |
-| T-01 | Trade-off | Leer de la base de datos mejora rendimiento y resiliencia, pero introduce consistencia eventual frente a la red (QA-RND-01, QA-DIS-01 contra QA-TRZ-01) |
-| T-02 | Trade-off | Anclajes firmados por billetera eliminan la custodia de llaves y dan no repudio, pero añaden fricción para centros y validadores (QA-SEG contra QA-USA) |
-| T-03 | Trade-off | El monolito acelera el plazo y facilita probar, pero escala como una unidad (QA-DEP, QA-TST contra escalabilidad independiente) |
+| S-01 | Sensibilidad | El tiempo de confirmación del RPC determina cuánto espera la persona antes del comprobante (QA-USA-01) |
+| S-02 | Sensibilidad | El tamaño de las imágenes y su procesamiento en el servidor afecta el tiempo de subida y el tamaño de la base (ADR-17) |
+| T-01 | Trade-off | Leer de la base mejora rendimiento y resiliencia, pero introduce consistencia eventual frente a la red (QA-RND-01, QA-DIS-01 contra QA-TRZ-01) |
+| T-02 | Trade-off | Exigir cuenta para apadrinar liga cada aporte a una persona y su perfil, pero añade un paso antes del primer aporte (QA-SEG-02 contra QA-USA-01) |
+| T-03 | Trade-off | Firmar con la billetera de cada quien elimina la custodia de llaves, pero exige instalar una billetera (QA-SEG contra QA-USA) |
 
 ### No-riesgos
 
-- La separación de funciones se aplica en el servidor y en la base de datos, no solo en la interfaz.
+- El dinero lo custodia el contrato: la ONG no puede gastar más de lo cubierto en una etapa ni pagar a una cuenta distinta del proveedor registrado.
 - Ningún dato personal ni ubicación se escribe en la red y el servidor no guarda llaves secretas.
 - Confirmar un aporte es idempotente por hash de transacción.
 
 ### Deuda reconocida
 
-Autenticación mínima, ausencia de cierre de caso y de reglas de reasignación de saldo, y desembolso sin segunda firma hasta la etapa 2.
+- Sin tarea programada de reconciliación (`CRON_SECRET` está definida pero ninguna ruta la usa).
+- `audit_log` existe en el esquema pero nadie escribe en ella.
+- Sin rol de validador ni firma doble (etapa 2); los niveles de validación los fija la ONG.
+- Sin recuperación de contraseña ni cierre de caso.
+- Un caso, perfil o comprobante que no existe muestra la página «no encontrado» pero responde 200 en vez de 404, porque el sitio ya empezó a transmitir la página mientras cargaba los datos.

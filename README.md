@@ -11,9 +11,10 @@ El MVP se presenta el 13 de noviembre de 2026. Contexto, requisitos y decisiones
 | Aplicación | Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS 4 |
 | Datos | PostgreSQL 16 con Drizzle ORM (migraciones versionadas) |
 | Contrato | Rust y `soroban-sdk` 27 en [`contracts/proof-of-wild`](contracts/proof-of-wild) |
-| Stellar | `@stellar/stellar-sdk` (RPC de Soroban y Horizon) |
+| Stellar | `@stellar/stellar-sdk` (RPC de Soroban y Horizon) y Stellar Wallets Kit (Freighter, Albedo, xBull, Lobstr, Hana, Rabet) |
 | Cuentas | SRP-6a con `secure-remote-password`: la base de datos nunca ve la contraseña |
 | Otros | zod, sharp (borra el EXIF de las fotos), Vitest |
+| Despliegue | Vercel (aplicación) y Neon (PostgreSQL con las evidencias); `main` es producción |
 
 ## Requisitos
 
@@ -48,10 +49,16 @@ npm run dev               # http://localhost:3000
 | `npm run contrato:build` | WASM de release del contrato |
 | `npm run red:preparar` | Prepara toda la demo en testnet (ver arriba) |
 | `npm run red:probar` | Prueba de punta a punta en testnet con un contrato y una base desechables (no toca la demo) |
+| `npm run red:usdc -- <cuenta G…> [monto] [--esperar]` | Envía USDC de prueba de la demo a una billetera propia (Freighter, Albedo…) para apadrinar con ella. Si la billetera no acepta aún ese USDC, imprime la línea de confianza sin firmar |
+| `npm run test:integration` | Solo las pruebas de integración contra `TEST_DATABASE_URL` |
 | `npm run db:migrate` | Aplica las migraciones |
 | `npm run db:seed` | Carga ONG, proveedores, casos con etapas, donantes y voluntariados (sin actividad en la red) |
 | `npm run db:seed:activity` | Igual, con aportes, gastos e hitos de ejemplo con **hashes inventados**: solo para trabajar la interfaz sin red |
 | `npm run db:fotos` | Pone las fotos de los casos y de cada etapa en una base ya sembrada, sin tocar cuentas ni aportes |
+| `node scripts/preparar-imagenes.mjs [--drive] "<carpeta>"` | Re-codifica en WebP sin EXIF las fotos que entrega el equipo (con `--drive`, una por etapa desde la carpeta del Drive) |
+| `npx tsx --env-file=.env scripts/evidencias-a-bd.ts` | Pasa a la base las evidencias que estaban en disco, con la misma clave |
+
+Las evidencias (facturas y fotos de los hitos) se guardan en la base de datos (`EVIDENCE_STORAGE=db`), así la aplicación no necesita disco en Vercel. Con `EVIDENCE_STORAGE=local` se guardan en `EVIDENCE_DIR`.
 
 Las pruebas de integración **vacían** la base de `TEST_DATABASE_URL`: usa una base distinta de la de la demo (`proofofwild_test`, ver `.env.example`). Se niegan a correr si apunta a la misma de `DATABASE_URL`.
 
@@ -77,21 +84,23 @@ Toda función que mueve dinero o escribe datos exige la firma de quien la llama.
 
 `red:preparar` (o `db:seed`) crea el administrador (`admin@proofofwild.example`) y las cuentas de las 2 ONG (`contacto@alaslibres.example`, `hola@bosquevivo.example`) con la contraseña `DEMO_PASSWORD`. Ana y Fundación Huellitas crean su cuenta en vivo. El inicio de sesión usa SRP-6a: el navegador demuestra que conoce la contraseña sin enviarla y el servidor solo guarda la sal y el verificador.
 
+Apadrinar exige una cuenta de persona con la sesión iniciada: el servidor rechaza preparar o enviar un aporte sin ella (401) o con una cuenta de ONG o de administrador (403). Quien pulsa «Apadrinar este caso» sin cuenta ve una invitación con el animal, su ruta, los tres pasos y la insignia; al crear la cuenta o ingresar vuelve al caso con la ventana de apadrinar abierta y un saludo. La billetera queda ligada al perfil con el primer aporte.
+
 ## Estado del MVP
 
 | Parte | Estado |
 |---|---|
 | Contrato con etapas, reparto, gasto al proveedor e hitos | Construido, 11 pruebas |
 | Script de preparación en testnet | Construido |
-| Inicio, lista de casos y detalle con línea de tiempo, transparencia y aportes | Construido con el diseño |
-| Cómo funciona | Construido |
+| Página principal única (Inicio, Cómo funciona, Casos y Voluntariados) y detalle del caso con ruta, línea de tiempo, transparencia y aportes | Construido con el diseño «Mapa de liberación», con estados de carga, vacíos y de hover |
 | Crear cuenta, ingresar (SRP-6a) y terminar perfil de persona | Construido y probado en el navegador |
 | Registro de ONG como solicitud en revisión | Construido y probado en el navegador |
 | Perfil público de la ONG | Construido |
 | Voluntariados con su inscripción | Construido y probado en el navegador |
 | Ventana de apadrinar con la billetera y comprobante; «Tu aporte» por etapa | Construido; preparar y su vista previa probados con el contrato real |
+| Apadrinar exige cuenta de persona, con invitación y regreso al caso | Construido; 401, 403 y el regreso probados contra el servidor |
 | Perfil del donante con su insignia «Huella verificada» y página pública | Construido y probado en el navegador |
-| Portal de la ONG con registrar gasto e hito | Construido; ventanas probadas en el navegador |
+| Portal de la ONG con sus casos, saldos y registrar gasto e hito | Construido; ventanas probadas en el navegador |
 | Aporte, gasto e hito de punta a punta en testnet (`red:probar`) | 27 comprobaciones pasan |
 
 ## Diseño
@@ -105,14 +114,16 @@ contracts/proof-of-wild/  Contrato Soroban (Rust) y sus pruebas
 scripts/                  Preparación de la red y de las imágenes, y prueba de punta a punta
 src/
   app/            Presentación (Next.js): páginas, layouts, acciones y rutas API
-  components/     Componentes de interfaz
+  components/     Interfaz: inicio (secciones de la página principal), casos, huella (perfil e insignia),
+                  mapa (ruta y curvas de nivel), movimiento (aparición al hacer scroll), estados (carga y
+                  «no encontrado»), sitio (encabezado, menú y pie), billetera
   modules/        Dominio y aplicación por capacidad (cases, catalog, contributions, records, shared)
   ports/          Puertos que el dominio necesita del exterior
-  platform/       Adaptadores: db, stellar (contrato y plan B clásico), storage, auth, config
+  platform/       Adaptadores: db, stellar (contrato y plan B clásico), storage, auth, config y container.ts
   lib/            Utilidades sin lógica de negocio
-public/           Fotos de la demo (sin EXIF) y logo
+public/           Fotos de la demo (sin EXIF), fotos por etapa y logo
 drizzle/          Migraciones SQL
-docs/arquitectura/  Contexto, drivers y arquitectura
+docs/arquitectura/  Contexto, drivers y arquitectura (ADR-01 a ADR-20)
 tests/            Pruebas de dominio, adaptadores e integración
 ```
 
