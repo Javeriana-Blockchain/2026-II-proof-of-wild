@@ -2,9 +2,14 @@
 
 import { useState } from "react";
 import { buttonClass } from "@/components/ui";
+import { useT } from "@/i18n/cliente";
 
-/** Compartir la insignia: LinkedIn (compartir enlace) y redes (menú del teléfono o copiar el enlace). */
+/**
+ * Compartir la insignia: LinkedIn (compartir enlace) y redes (menú del teléfono o copiar el enlace). `path` llega ya
+ * en el idioma de la página; `text`, ya traducido.
+ */
 export function ShareButtons({ path, text }: { path: string; text: string }) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
   const url = () => `${window.location.origin}${path}`;
 
@@ -15,12 +20,12 @@ export function ShareButtons({ path, text }: { path: string; text: string }) {
         onClick={() => window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url())}`, "_blank", "noopener")}
         className={buttonClass("arena")}
       >
-        Compartir en LinkedIn
+        {t("huella.compartir.linkedin")}
       </button>
       <button
         type="button"
         onClick={async () => {
-          if (navigator.share) await navigator.share({ title: "Huella verificada · Proof of Wild", text, url: url() }).catch(() => {});
+          if (navigator.share) await navigator.share({ title: t("huella.compartir.titulo"), text, url: url() }).catch(() => {});
           else {
             await navigator.clipboard.writeText(url()).catch(() => {});
             setCopied(true);
@@ -28,7 +33,7 @@ export function ShareButtons({ path, text }: { path: string; text: string }) {
         }}
         className={buttonClass("contorno")}
       >
-        {copied ? "Enlace copiado" : "Compartir en redes"}
+        {copied ? t("huella.compartir.copiado") : t("huella.compartir.redes")}
       </button>
     </div>
   );
