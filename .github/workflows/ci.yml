@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+jobs:
+  verificar:
+    name: Tipos, pruebas y compilación
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: pow
+          POSTGRES_PASSWORD: pow
+          POSTGRES_DB: proofofwild
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pow -d proofofwild"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      # Base de datos desechable del servicio: activa las pruebas de integración.
+      TEST_DATABASE_URL: postgres://pow:pow@localhost:5432/proofofwild
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verificación de tipos
+        run: npm run typecheck
+
+      - name: Pruebas (reglas de dominio, adaptadores e integración)
+        run: npm test
+
+      - name: Compilación
+        run: npm run build
+
+  contrato:
+    name: Pruebas y compilación del contrato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # La versión que pide contracts/proof-of-wild/Cargo.toml (rust-version).
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.91.1"
+          targets: wasm32v1-none
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts/proof-of-wild
+
+      - name: Pruebas del contrato
+        run: cargo test --locked --manifest-path contracts/proof-of-wild/Cargo.toml
+
+      - name: WASM de release
+        run: cargo build --locked --release --target wasm32v1-none --manifest-path contracts/proof-of-wild/Cargo.toml
+
+  contrato_raiz:
+    name: Pruebas del contrato Raíz (semana 3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts/raiz
+
+      - name: cargo test
+        run: cargo test --locked --manifest-path contracts/raiz/Cargo.toml
