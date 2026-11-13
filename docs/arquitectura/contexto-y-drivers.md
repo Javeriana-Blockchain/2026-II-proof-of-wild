@@ -54,6 +54,7 @@ Prioridad según el brief: **M** entra en el MVP; **D** queda para después.
 | ID | Requisito | Prio. | Estado |
 |---|---|---|---|
 | RF-INI-01 | Página principal con Inicio, Cómo funciona, Casos y Voluntariados | M | Construido como una sola página con menú de anclas |
+| RF-IDI-01 | La plataforma en español, inglés y portugués, con selector de idioma y enlaces que conservan el idioma | Puntos adicionales | Construido; español sin prefijo, `/en` y `/pt` (ADR-22) |
 | RF-CAT-01 | Catálogo: tarjetas con especie (si es seguro divulgarla), ONG, meta, porcentaje cubierto y etapa actual | M | Construido; cada tarjeta muestra la ruta de etapas |
 | RF-CAT-02 | Detalle del caso: estado inicial, meta y etapas, línea de tiempo con evidencia y nivel de validación, y panel de transparencia (aportes, gastos, saldo, cada uno con enlace a su transacción) | M | Construido |
 | RF-CUE-01 | Crear cuenta de persona u ONG e ingresar con correo y contraseña | M | Construido (SRP-6a) |
