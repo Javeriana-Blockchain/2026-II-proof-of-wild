@@ -6,7 +6,7 @@ import { getContributionService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
 import { contributions, personProfiles } from "@/platform/db/schema";
 import { requireDonor } from "../../_lib/donante";
-import { errorResponse, readJson } from "../../_lib/http";
+import { errorResponse, readJson, withTranslatedMessage } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
 // Espera unos segundos la confirmación de la red antes de responder.
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const { signedXdr } = await readJson(request, body);
     const result = await getContributionService().submit(signedXdr);
     await linkWalletToProfile(result.txHash);
-    return NextResponse.json(result, { status: result.status === "enviada" ? 202 : 200 });
+    return NextResponse.json(await withTranslatedMessage(result), { status: result.status === "enviada" ? 202 : 200 });
   } catch (error) {
     return errorResponse(error);
   }
