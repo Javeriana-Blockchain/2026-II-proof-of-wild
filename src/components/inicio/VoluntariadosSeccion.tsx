@@ -1,26 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
-import { formatDate, formatDayMonth } from "@/app/_lib/format";
 import { IconoCamara, IconoCheck } from "@/components/iconos";
 import { ContourField } from "@/components/mapa/ContourField";
 import { buttonClass, EmptyState, ProgressBar } from "@/components/ui";
 import type { PublicVolunteering } from "@/platform/db/repositories/volunteering";
 import { Reveal } from "@/components/movimiento/Reveal";
+import { getT } from "@/i18n/servidor";
 
-const REGLAS = [
-  ["Sin contacto", "con los animales"],
-  ["Cupos limitados", "grupos pequeños"],
-  ["La ONG confirma", "tu cupo por correo"],
-];
-
-const PASOS = [
-  ["Elige una jornada", "y envía tu inscripción."],
-  ["La ONG te confirma", "tu cupo y la dirección por correo."],
-  ["Vives un día en el refugio", "y ves en persona cómo se usa cada aporte."],
-];
+/** Reglas de la jornada y pasos del voluntariado: cada uno es una frase en negrita y su continuación. */
+const REGLAS = ["regla1", "regla2", "regla3"] as const;
+const PASOS = ["como.1", "como.2", "como.3"] as const;
 
 /** «Voluntariados»: las jornadas abiertas de las ONG, con la regla de no tener contacto con los animales. */
-export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
+export async function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
+  const { t, rich, ruta, formatDate, formatDayMonth } = await getT();
   const thisYear = new Date().getUTCFullYear();
   return (
     <section id="voluntariados" aria-labelledby="titulo-voluntariados" className="relative isolate overflow-hidden bg-profundo text-white">
@@ -29,21 +22,20 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
         <header className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <div className="max-w-2xl">
             <Reveal as="h2" variant="sube" id="titulo-voluntariados" className="text-5xl sm:text-6xl">
-              Voluntariados
+              {t("inicio.vol.titulo")}
             </Reveal>
             <Reveal as="p" variant="sube" delay={1} className="mt-4 text-xl text-white/90">
-              Pasa un día en una de las ONG de la página y conoce de cerca cómo trabajan. Ayudas con el refugio, no con los
-              animales.
+              {t("inicio.vol.intro")}
             </Reveal>
           </div>
           <ul className="flex flex-wrap gap-3">
-            {REGLAS.map(([fuerte, resto], i) => (
+            {REGLAS.map((regla, i) => (
               <Reveal as="li" variant="pop" delay={1 + i}
-                key={fuerte}
+                key={regla}
                 className="rounded-2xl border border-white/25 bg-profundo px-5 py-3"
               >
-                <strong className="block">{fuerte}</strong>
-                <span className="text-white/80">{resto}</span>
+                <strong className="block">{t(`inicio.vol.${regla}.fuerte`)}</strong>
+                <span className="text-white/80">{t(`inicio.vol.${regla}.resto`)}</span>
               </Reveal>
             ))}
           </ul>
@@ -52,14 +44,14 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
         <div className="space-y-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <Reveal as="h3" variant="sube" className="text-4xl">
-              Próximas jornadas
+              {t("inicio.vol.proximas")}
             </Reveal>
-            <p className="text-white/80">Las tareas se hacen en zonas sin animales, por su bienestar.</p>
+            <p className="text-white/80">{t("inicio.vol.sinAnimales")}</p>
           </div>
 
           {list.length === 0 ? (
-            <EmptyState tone="oscuro" title="Por ahora no hay jornadas abiertas.">
-              Cuando una ONG publique una jornada aparecerá aquí, con sus tareas y sus cupos.
+            <EmptyState tone="oscuro" title={t("inicio.vol.vacio.titulo")}>
+              {t("inicio.vol.vacio.texto")}
             </EmptyState>
           ) : (
             <div className="grid gap-6 lg:grid-cols-2">
@@ -76,14 +68,14 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
                       {v.photoPath ? (
                         <Image
                           src={v.photoPath}
-                          alt={`Instalaciones de ${v.ngo.name}`}
+                          alt={t("inicio.vol.fotoAlt", { ong: v.ngo.name })}
                           fill
                           sizes="(min-width: 1024px) 22vw, (min-width: 640px) 40vw, 100vw"
                           className="object-cover transition-transform duration-700 ease-(--ease-out-expo) group-hover/jornada:scale-[1.05]"
                         />
                       ) : (
                         <span className="flex h-full flex-col items-center justify-center gap-2 p-4 text-center text-sm">
-                          <IconoCamara className="h-7 w-7" /> Foto del refugio (sin animales cerca)
+                          <IconoCamara className="h-7 w-7" /> {t("inicio.vol.sinFoto")}
                         </span>
                       )}
                       <span className="rotulo absolute top-4 left-4 rounded-md bg-bosque px-2.5 py-1.5 text-white">{date}</span>
@@ -94,34 +86,34 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
                         {v.title} · {v.schedule} · {v.city}
                       </p>
                       <ul className="space-y-1">
-                        {v.tasks.map((t) => (
-                          <li key={t} className="flex gap-2">
-                            <IconoCheck className="mt-1 h-4 w-4 shrink-0 text-bosque" /> {t}
+                        {v.tasks.map((tarea) => (
+                          <li key={tarea} className="flex gap-2">
+                            <IconoCheck className="mt-1 h-4 w-4 shrink-0 text-bosque" /> {tarea}
                           </li>
                         ))}
                       </ul>
                       <p className="text-sm">
-                        <strong>Requisitos:</strong> {v.requirements.join(" · ").toLowerCase()}
+                        <strong>{t("inicio.vol.requisitos")}</strong> {v.requirements.join(" · ").toLowerCase()}
                       </p>
                       <div className="mt-auto space-y-1 pt-2">
                         <p className="cifras flex justify-between text-sm">
                           <span>
-                            <strong>{v.occupied}</strong> de {v.capacity} cupos ocupados
+                            {rich("inicio.vol.ocupados", { b: (s) => <strong>{s}</strong> }, { ocupados: v.occupied, cupos: v.capacity })}
                           </span>
-                          <span className="text-secundario">Quedan {free}</span>
+                          <span className="text-secundario">{t("inicio.vol.quedan", { n: free })}</span>
                         </p>
-                        <ProgressBar percent={(v.occupied / v.capacity) * 100} label="Cupos ocupados" />
+                        <ProgressBar percent={(v.occupied / v.capacity) * 100} label={t("inicio.vol.barra")} />
                       </div>
                       <div className="flex flex-wrap items-center gap-5 pt-2">
                         {free > 0 ? (
-                          <Link href={`/?inscribirme=${v.id}`} scroll={false} className={buttonClass("primario")}>
-                            Inscribirme
+                          <Link href={ruta(`/?inscribirme=${v.id}`)} scroll={false} className={buttonClass("primario")}>
+                            {t("inicio.vol.inscribirme")}
                           </Link>
                         ) : (
-                          <span className={buttonClass("primario", "pointer-events-none opacity-60")}>Sin cupos</span>
+                          <span className={buttonClass("primario", "pointer-events-none opacity-60")}>{t("inicio.vol.sinCupos")}</span>
                         )}
-                        <Link href={`/ong/${v.ngo.slug}`} className="enlace">
-                          Ver la ONG
+                        <Link href={ruta(`/ong/${v.ngo.slug}`)} className="enlace">
+                          {t("inicio.vol.verOng")}
                         </Link>
                       </div>
                     </div>
@@ -137,17 +129,17 @@ export function VoluntariadosSeccion({ list }: { list: PublicVolunteering[] }) {
           className="grid items-center gap-6 rounded-[28px] bg-arena p-7 text-texto lg:grid-cols-[1fr_3fr]"
         >
           <h3 id="como-voluntariado" className="text-3xl">
-            ¿Cómo funciona un voluntariado?
+            {t("inicio.vol.como.titulo")}
           </h3>
           <ol className="grid gap-5 sm:grid-cols-3">
-            {PASOS.map(([fuerte, resto], i) => (
-              <li key={fuerte} className="flex gap-3">
+            {PASOS.map((paso, i) => (
+              <li key={paso} className="flex gap-3">
                 <span className="cifras flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bosque font-bold text-white">
                   {i + 1}
                 </span>
                 <span>
-                  <strong className="block">{fuerte}</strong>
-                  {resto}
+                  <strong className="block">{t(`inicio.vol.${paso}.fuerte`)}</strong>
+                  {t(`inicio.vol.${paso}.resto`)}
                 </span>
               </li>
             ))}
