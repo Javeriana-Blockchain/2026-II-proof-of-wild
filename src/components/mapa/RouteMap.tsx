@@ -1,6 +1,8 @@
-import { formatAmount } from "@/app/_lib/format";
-import { STAGE_STATUS_LABELS } from "@/app/_lib/labels";
+"use client";
+
+import { stageStatusLabel } from "@/app/_lib/labels";
 import { IconoCheck, IconoEtapa, stageKind } from "@/components/iconos";
+import { useT } from "@/i18n/cliente";
 import { toStroops } from "@/lib/amount";
 import type { RouteStage } from "@/modules/catalog";
 import { Reveal } from "@/components/movimiento/Reveal";
@@ -9,6 +11,8 @@ import { Reveal } from "@/components/movimiento/Reveal";
  * La ruta del tratamiento como en un mapa: un punto por etapa, unidos por un sendero punteado. El tramo ya recorrido
  * (las etapas cubiertas) se dibuja continuo al aparecer; el relleno de cada punto crece con lo cubierto, y en la
  * etapa en curso late el marcador «Aquí va».
+ * Es de cliente porque la pintan tanto páginas de servidor como ventanas de cliente; sus props son datos planos y
+ * `label` llega ya traducido.
  */
 export function RouteMap({
   stages,
@@ -26,6 +30,7 @@ export function RouteMap({
   label: string;
   className?: string;
 }) {
+  const { t, rich, formatAmount } = useT();
   const ordered = [...stages].sort((a, b) => a.position - b.position);
   const n = ordered.length;
   if (n === 0) return null;
@@ -148,7 +153,7 @@ export function RouteMap({
                   <span
                     className={`rotulo absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded-md px-2 py-1 leading-none whitespace-nowrap sm:block ${dark ? "bg-crema text-profundo" : "bg-bosque text-white"}`}
                   >
-                    Aquí va
+                    {t("casos.ruta.aquiVa")}
                   </span>
                 ) : null}
               </span>
@@ -156,19 +161,22 @@ export function RouteMap({
               <span className="min-w-0 space-y-0.5">
                 <span className={`rotulo flex items-center gap-1.5 sm:justify-center ${dark ? "text-salvia" : "text-secundario"}`}>
                   <IconoEtapa kind={kind} className="h-3.5 w-3.5" />
-                  Etapa {stage.position}
-                  <span className="sm:hidden">· {here ? "Aquí va" : STAGE_STATUS_LABELS[stage.status]}</span>
+                  {t("casos.etapaN", { n: stage.position })}
+                  <span className="sm:hidden">· {here ? t("casos.ruta.aquiVa") : stageStatusLabel(t, stage.status)}</span>
                 </span>
                 <span className={`block leading-snug font-semibold ${big ? "text-base" : "text-sm"} ${dark ? "text-white" : "text-texto"}`}>
                   {stage.shortName}
                 </span>
                 {showAmounts ? (
                   <span className={`cifras block text-sm ${dark ? "text-white/80" : "text-secundario"}`}>
-                    <strong className={dark ? "text-white" : "text-texto"}>{formatAmount(stage.covered, "")}</strong>
-                    de {formatAmount(stage.cost)}
+                    {rich(
+                      "casos.cubiertoDe",
+                      { b: (s) => <strong className={dark ? "text-white" : "text-texto"}>{s}</strong> },
+                      { cubierto: formatAmount(stage.covered, "").trim(), costo: formatAmount(stage.cost) },
+                    )}
                   </span>
                 ) : null}
-                <span className="sr-only">{STAGE_STATUS_LABELS[stage.status]}</span>
+                <span className="sr-only">{stageStatusLabel(t, stage.status)}</span>
               </span>
             </li>
           );

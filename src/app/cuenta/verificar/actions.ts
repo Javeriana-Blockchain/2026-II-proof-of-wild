@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getSession } from "@/app/_lib/session";
+import { traducirError } from "@/i18n/errores";
+import { getT } from "@/i18n/servidor";
 import { DomainError } from "@/modules/shared/errors";
 import { getIdentityService } from "@/platform/container";
 
@@ -41,10 +43,11 @@ export type VerifyResult = { ok: true; identity: VerifiedIdentity } | { ok: fals
  * puntajes de la biometría hecha en el navegador; nunca las imágenes.
  */
 export async function verifyIdentity(raw: unknown): Promise<VerifyResult> {
+  const { t } = await getT();
   const session = await getSession();
-  if (session?.role !== "persona") return { ok: false, message: "Ingresa con tu cuenta de persona para verificarte." };
+  if (session?.role !== "persona") return { ok: false, message: t("cuenta.verificar.error.persona") };
   const parsed = input.safeParse(raw);
-  if (!parsed.success) return { ok: false, message: "Los datos de la verificación no son válidos." };
+  if (!parsed.success) return { ok: false, message: t("cuenta.verificar.error.datos") };
   try {
     // Sin revalidatePath: refrescaría esta página y taparía la celebración del final. El perfil es dinámico.
     const record = await getIdentityService().verify(session.userId, parsed.data);
@@ -60,9 +63,10 @@ export async function verifyIdentity(raw: unknown): Promise<VerifyResult> {
       },
     };
   } catch (error) {
-    if (error instanceof DomainError) return { ok: false, message: error.message };
+    // Los mensajes del dominio y del registro (también el rechazo del registro simulado) llegan en español.
+    if (error instanceof DomainError) return { ok: false, message: traducirError(error.message, t) };
     console.error(error);
-    return { ok: false, message: "Algo falló de nuestro lado. Inténtalo de nuevo." };
+    return { ok: false, message: t("cuenta.verificar.error.generico") };
   }
 }
 

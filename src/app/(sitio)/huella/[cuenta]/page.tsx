@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { BadgeCard, DonorHeader, DonorSections, DonorTotals } from "@/components/huella/DonorSections";
+import { getT } from "@/i18n/servidor";
 import { isStellarAccount, shortAccount } from "@/lib/stellar-account";
 import { getExplorerEnv } from "@/platform/config/env";
 import { evidenceUrl, getCatalogService } from "@/platform/container";
@@ -14,11 +15,12 @@ type Props = { params: Promise<{ cuenta: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { cuenta } = await params;
-  if (!isStellarAccount(cuenta)) return { title: "Huella no encontrada" };
+  const { t, tn } = await getT();
+  if (!isStellarAccount(cuenta)) return { title: t("huella.meta.noEncontrada") };
   const view = await getDonorView(getDb(), cuenta);
   const who = view.alias ?? shortAccount(cuenta);
-  const title = `Huella verificada de ${who}`;
-  const description = `Apoya ${view.cases.length} ${view.cases.length === 1 ? "caso" : "casos"} de fauna silvestre rescatada. Cada aporte se puede comprobar en Stellar.`;
+  const title = t("huella.meta.titulo", { quien: who });
+  const description = tn("huella.meta.descripcion", view.cases.length);
   return { title, description, openGraph: { title, description, type: "profile" } };
 }
 
@@ -29,20 +31,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function HuellaPage({ params }: Props) {
   const { cuenta } = await params;
   if (!isStellarAccount(cuenta)) notFound();
-  const [view, cases, verified] = await Promise.all([
+  const [view, cases, verified, { t }] = await Promise.all([
     getDonorView(getDb(), cuenta),
     getCatalogService().listCases(),
     isAccountVerified(getDb(), cuenta),
+    getT(),
   ]);
   const routes = new Map(cases.map((c) => [c.code, c.route]));
 
   return (
     <main className="mx-auto max-w-7xl space-y-10 px-4 py-8 sm:px-8">
-      <DonorHeader name={view.alias ?? "Donante"} account={cuenta} verified={verified} seal={<BadgeCard view={view} sharePath={`/huella/${cuenta}`} />}>
-        <p>
-          Estos aportes están en la red Stellar: cualquiera puede comprobarlos en Stellar Expert. Proof of Wild no muestra
-          el nombre ni los datos de contacto de nadie.
-        </p>
+      <DonorHeader
+        name={view.alias ?? t("huella.publica.donante")}
+        account={cuenta}
+        verified={verified}
+        seal={<BadgeCard view={view} sharePath={`/huella/${cuenta}`} />}
+      >
+        <p>{t("huella.publica.intro")}</p>
       </DonorHeader>
       <DonorTotals view={view} own={false} />
       <DonorSections

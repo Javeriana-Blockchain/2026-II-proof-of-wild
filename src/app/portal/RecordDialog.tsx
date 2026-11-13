@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
-import { CATEGORY_LABELS } from "@/app/_lib/labels";
+import { categoryLabel, EXPENSE_CATEGORIES } from "@/app/_lib/labels";
 import { useWallet, walletErrorMessage } from "@/components/billetera/WalletProvider";
 import { IconoCheck, IconoMenu } from "@/components/iconos";
 import { buttonClass, Spinner } from "@/components/ui";
+import { useT } from "@/i18n/cliente";
+import type { Clave } from "@/i18n/traductor";
 import { shortAccount } from "@/lib/stellar-account";
 
 export interface PortalCaseOption {
@@ -17,11 +19,11 @@ export interface PortalCaseOption {
 
 type Kind = "gasto" | "hito";
 type Step = "idle" | "preparing" | "signing" | "sending" | "confirming";
-const STEP_LABELS: Record<Exclude<Step, "idle">, string> = {
-  preparing: "Guardando el archivo y preparando…",
-  signing: "Firma con la billetera de la ONG…",
-  sending: "Enviando a la red Stellar…",
-  confirming: "La red está confirmando…",
+const STEP_LABELS: Record<Exclude<Step, "idle">, Clave> = {
+  preparing: "ong.registrar.paso.preparando",
+  signing: "ong.registrar.paso.firmando",
+  sending: "ong.registrar.paso.enviando",
+  confirming: "ong.registrar.paso.confirmando",
 };
 
 const field =
@@ -44,6 +46,7 @@ export function RecordDialog({
   explorerBaseUrl: string;
   initialCase?: string;
 }) {
+  const { t, rich, ruta } = useT();
   const router = useRouter();
   const wallet = useWallet();
   const [caseCode, setCaseCode] = useState(cases.find((c) => c.code === initialCase)?.code ?? cases[0]?.code ?? "");
@@ -59,7 +62,7 @@ export function RecordDialog({
   const today = new Date().toISOString().slice(0, 10);
   const busy = step !== "idle";
   const close = () => {
-    router.push("/portal", { scroll: false });
+    router.push(ruta("/portal"), { scroll: false });
     router.refresh();
   };
 
@@ -73,17 +76,17 @@ export function RecordDialog({
       setStep("preparing");
       const prepared = await fetch(`/api/portal/${kind === "gasto" ? "gastos" : "hitos"}/preparar`, { method: "POST", body: form });
       const prep = (await prepared.json()) as { id: string; xdr: string; networkPassphrase: string } & ApiError;
-      if (!prepared.ok) throw new Error(prep.error?.message ?? "No se pudo preparar el registro.");
+      if (!prepared.ok) throw new Error(prep.error?.message ?? t("ong.registrar.error.preparar"));
 
       setStep("signing");
       let address = wallet.address;
-      if (address !== ngoAccount) address = await wallet.connect().catch((e) => Promise.reject(new Error(walletErrorMessage(e))));
-      if (address !== ngoAccount) throw new Error(`Conecta la billetera de la ONG (${shortAccount(ngoAccount)}) para firmar.`);
+      if (address !== ngoAccount) address = await wallet.connect().catch((e) => Promise.reject(new Error(walletErrorMessage(e, t))));
+      if (address !== ngoAccount) throw new Error(t("ong.registrar.error.conectar", { cuenta: shortAccount(ngoAccount) }));
       let signedXdr: string;
       try {
         signedXdr = await wallet.sign(prep.xdr, prep.networkPassphrase);
       } catch (e) {
-        throw new Error(walletErrorMessage(e));
+        throw new Error(walletErrorMessage(e, t));
       }
 
       setStep("sending");
@@ -93,7 +96,7 @@ export function RecordDialog({
         body: JSON.stringify({ kind, id: prep.id, signedXdr }),
       });
       const sent = (await sentResponse.json()) as { status: string; txHash: string | null } & ApiError;
-      if (!sentResponse.ok && sentResponse.status !== 202) throw new Error(sent.error?.message ?? "No se pudo enviar el registro.");
+      if (!sentResponse.ok && sentResponse.status !== 202) throw new Error(sent.error?.message ?? t("ong.registrar.error.enviar"));
 
       setStep("confirming");
       let result = sent;
@@ -101,16 +104,17 @@ export function RecordDialog({
         await new Promise((r) => setTimeout(r, 2500));
         result = (await fetch(`/api/portal/registros/${kind}/${prep.id}`).then((r) => r.json())) as typeof sent;
       }
-      if (result.status === "fallida") throw new Error("La red no aceptó el registro. Revisa los datos y vuelve a intentarlo.");
+      if (result.status === "fallida") throw new Error(t("ong.registrar.error.fallida"));
       setDone({ txHash: result.txHash, status: result.status });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ocurrió un error inesperado.");
+      setError(e instanceof Error ? e.message : t("ong.registrar.error.inesperado"));
     } finally {
       setStep("idle");
     }
   }
 
-  const title = kind === "gasto" ? "Registrar gasto" : "Registrar hito";
+  const title = kind === "gasto" ? t("ong.portal.registrarGasto") : t("ong.portal.registrarHito");
+  const bold = { b: (s: string) => <strong>{s}</strong> };
 
   return (
     <div className="anim-fondo fixed inset-0 z-50 flex items-center justify-center bg-texto/60 p-4" onClick={() => !busy && close()}>
@@ -127,12 +131,10 @@ export function RecordDialog({
               {title}
             </h2>
             <p className="text-secundario">
-              {kind === "gasto"
-                ? "El contrato le paga al proveedor y la factura queda publicada."
-                : "Un avance del tratamiento con su foto o documento."}
+              {kind === "gasto" ? t("ong.registrar.subtitulo.gasto") : t("ong.registrar.subtitulo.hito")}
             </p>
           </div>
-          <button type="button" onClick={close} disabled={busy} aria-label="Cerrar" className="mov-hover flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-arena text-texto transition-[transform,border-color,color] duration-200 ease-(--ease-spring) hover:rotate-90 hover:border-bosque hover:text-bosque disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" onClick={close} disabled={busy} aria-label={t("ong.registrar.cerrar")}className="mov-hover flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border-2 border-arena text-texto transition-[transform,border-color,color] duration-200 ease-(--ease-spring) hover:rotate-90 hover:border-bosque hover:text-bosque disabled:cursor-not-allowed disabled:opacity-40">
             <IconoMenu abierto className="h-5 w-5" />
           </button>
         </div>
@@ -145,24 +147,25 @@ export function RecordDialog({
               </span>
               {done.status === "confirmada"
                 ? kind === "gasto"
-                  ? `Gasto registrado: el contrato le pagó a ${provider?.name ?? "el proveedor"}.`
-                  : "Hito registrado en la red."
-                : "Registro enviado: la red lo confirmará en unos minutos."}
+                  ? t("ong.registrar.listo.gasto", { proveedor: provider?.name ?? t("ong.registrar.listo.proveedor") })
+                  : t("ong.registrar.listo.hito")
+                : t("ong.registrar.listo.enviado")}
             </p>
-            <p className="text-secundario">
-              Queda como «presentado por la ONG» y ya aparece en la línea de tiempo y en el panel de transparencia del caso.
-            </p>
+            <p className="text-secundario">{t("ong.registrar.listo.nota")}</p>
             <div className="flex flex-wrap gap-3">
               {done.txHash ? (
                 <a href={`${explorerBaseUrl.replace(/\/+$/, "")}/tx/${done.txHash}`} target="_blank" rel="noreferrer" className={buttonClass("secundario")}>
-                  Ver en Stellar Expert
+                  {t("ong.verEnStellarExpert")}
                 </a>
               ) : null}
-              <Link href={`/casos/${caseCode}?pestana=${kind === "gasto" ? "transparencia" : "linea"}`} className={buttonClass("secundario")}>
-                Ver en el caso
+              <Link
+                href={ruta(`/casos/${caseCode}?pestana=${kind === "gasto" ? "transparencia" : "linea"}`)}
+                className={buttonClass("secundario")}
+              >
+                {t("ong.registrar.listo.verEnCaso")}
               </Link>
               <button type="button" onClick={close} className={buttonClass("primario")}>
-                Listo
+                {t("ong.registrar.listo.cerrar")}
               </button>
             </div>
           </div>
@@ -170,7 +173,7 @@ export function RecordDialog({
           <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-2" noValidate>
             <div className="space-y-4">
               <label className="block">
-                <span className="font-semibold">Caso</span>
+                <span className="font-semibold">{t("ong.registrar.caso")}</span>
                 <select
                   value={caseCode}
                   onChange={(e) => {
@@ -188,7 +191,7 @@ export function RecordDialog({
                 </select>
               </label>
               <label className="block">
-                <span className="font-semibold">Etapa</span>
+                <span className="font-semibold">{t("ong.registrar.etapa")}</span>
                 <select value={stage} onChange={(e) => setStage(e.target.value)} className={field}>
                   {selected?.stages.map((s) => (
                     <option key={s.position} value={s.position}>
@@ -198,7 +201,7 @@ export function RecordDialog({
                 </select>
                 {kind === "gasto" && stageInfo ? (
                   <span className="mt-1 block text-sm text-secundario">
-                    Disponible en esta etapa: <strong>{Number(stageInfo.available)} USDC</strong>
+                    {rich("ong.registrar.disponible", bold, { monto: Number(stageInfo.available) })}
                   </span>
                 ) : null}
               </label>
@@ -207,21 +210,21 @@ export function RecordDialog({
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <label className="block">
-                      <span className="font-semibold">Monto (USDC)</span>
+                      <span className="font-semibold">{t("ong.registrar.monto")}</span>
                       <input name="amount" inputMode="decimal" required className={field} />
                     </label>
                     <label className="block">
-                      <span className="font-semibold">Categoría</span>
+                      <span className="font-semibold">{t("ong.registrar.categoria")}</span>
                       <select name="category" defaultValue="medicamentos" className={field}>
-                        {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                        {EXPENSE_CATEGORIES.map((value) => (
                           <option key={value} value={value}>
-                            {label}
+                            {categoryLabel(t, value)}
                           </option>
                         ))}
                       </select>
                     </label>
                     <label className="block">
-                      <span className="font-semibold">Proveedor</span>
+                      <span className="font-semibold">{t("ong.registrar.proveedor")}</span>
                       <select name="providerId" value={providerId} onChange={(e) => setProviderId(e.target.value)} className={field}>
                         {providers.map((p) => (
                           <option key={p.id} value={p.id}>
@@ -231,15 +234,15 @@ export function RecordDialog({
                       </select>
                     </label>
                     <label className="block">
-                      <span className="font-semibold">Cuenta del proveedor</span>
+                      <span className="font-semibold">{t("ong.registrar.cuentaProveedor")}</span>
                       <input value={provider ? shortAccount(provider.account) : ""} readOnly className={`${field} bg-gris font-mono`} />
                     </label>
                     <label className="block">
-                      <span className="font-semibold">Fecha</span>
+                      <span className="font-semibold">{t("ong.registrar.fecha")}</span>
                       <input name="occurredOn" type="date" defaultValue={today} max={today} required className={field} />
                     </label>
                     <label className="block">
-                      <span className="font-semibold">Número de factura</span>
+                      <span className="font-semibold">{t("ong.registrar.numeroFactura")}</span>
                       <input name="invoiceNumber" required placeholder="FV-0412" className={field} />
                     </label>
                   </div>
@@ -247,11 +250,11 @@ export function RecordDialog({
               ) : (
                 <>
                   <label className="block">
-                    <span className="font-semibold">Fecha</span>
+                    <span className="font-semibold">{t("ong.registrar.fecha")}</span>
                     <input name="occurredOn" type="date" defaultValue={today} max={today} required className={field} />
                   </label>
                   <label className="block">
-                    <span className="font-semibold">Descripción corta</span>
+                    <span className="font-semibold">{t("ong.registrar.descripcion")}</span>
                     <textarea name="description" rows={3} required maxLength={280} className={field} />
                   </label>
                 </>
@@ -261,9 +264,9 @@ export function RecordDialog({
             <div className="space-y-4">
               <label className="flex min-h-48 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-salvia bg-gris p-6 text-center">
                 <span className="text-lg font-semibold">
-                  {kind === "gasto" ? "Factura (obligatoria)" : "Foto o documento del avance"}
+                  {kind === "gasto" ? t("ong.registrar.archivo.factura") : t("ong.registrar.archivo.foto")}
                 </span>
-                <span className="text-sm text-secundario">PDF, JPG, PNG o WebP, hasta 4 MB</span>
+                <span className="text-sm text-secundario">{t("ong.registrar.archivo.formatos")}</span>
                 <input
                   name={kind === "gasto" ? "invoice" : "photo"}
                   type="file"
@@ -273,16 +276,10 @@ export function RecordDialog({
                 />
               </label>
               <p className="rounded-2xl bg-crema p-4 text-sm">
-                <strong>Antes de subir:</strong>{" "}
-                {kind === "gasto"
-                  ? "tapa los datos personales de terceros que aparezcan en la factura."
-                  : "sin personas en la foto y sin ubicación exacta. Los metadatos se borran al subirla."}
+                {rich(kind === "gasto" ? "ong.registrar.antes.gasto" : "ong.registrar.antes.hito", bold)}
               </p>
               {kind === "gasto" ? (
-                <p className="rounded-2xl bg-salvia p-4 text-sm">
-                  <strong>Doble confirmación.</strong> El contrato le paga al proveedor desde el saldo de la etapa y guarda el
-                  hash de la factura. El pago se ve en Stellar Expert y la factura queda publicada en el caso.
-                </p>
+                <p className="rounded-2xl bg-salvia p-4 text-sm">{rich("ong.registrar.dobleConfirmacion", bold)}</p>
               ) : null}
             </div>
 
@@ -290,23 +287,26 @@ export function RecordDialog({
               <div role="alert" className="flex items-center justify-between gap-4 rounded-2xl border border-error px-5 py-4 text-error lg:col-span-2">
                 <span className="font-medium">{error}</span>
                 <button type="submit" className="mov-hover cursor-pointer rounded-xl bg-error px-5 py-2 font-semibold text-white transition-transform duration-200 ease-(--ease-spring) hover:-translate-y-0.5 active:scale-95">
-                  Reintentar
+                  {t("comun.error.reintentar")}
                 </button>
               </div>
             ) : null}
 
             <div className="flex flex-wrap items-center justify-between gap-4 border-t border-arena/60 pt-5 lg:col-span-2">
               <p className="max-w-xl text-sm text-secundario">
-                Al guardar se calcula el hash del archivo y lo firmas con la billetera de la ONG ({shortAccount(ngoAccount)}).
-                Queda como «presentado por la ONG».
+                {t("ong.registrar.pieNota", { cuenta: shortAccount(ngoAccount) })}
               </p>
               <div className="flex gap-3">
                 <button type="button" onClick={close} disabled={busy} className={buttonClass("secundario")}>
-                  Cancelar
+                  {t("ong.registrar.cancelar")}
                 </button>
                 <button type="submit" disabled={busy || cases.length === 0} className={buttonClass("primario")}>
                   {busy ? <Spinner className="h-5 w-5" /> : null}
-                  {busy ? STEP_LABELS[step as Exclude<Step, "idle">] : kind === "gasto" ? "Firmar y registrar gasto" : "Firmar y registrar hito"}
+                  {busy
+                    ? t(STEP_LABELS[step as Exclude<Step, "idle">])
+                    : kind === "gasto"
+                      ? t("ong.registrar.firmar.gasto")
+                      : t("ong.registrar.firmar.hito")}
                 </button>
               </div>
             </div>

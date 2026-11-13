@@ -1,23 +1,29 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { formatAmount, formatDate, formatShortDate } from "@/app/_lib/format";
 import { IconoCheck, IconoEscudo, IconoHuella } from "@/components/iconos";
 import { ContourField } from "@/components/mapa/ContourField";
 import { RouteMap } from "@/components/mapa/RouteMap";
 import { Reveal } from "@/components/movimiento/Reveal";
 import { buttonClass, Chip, EmptyState, ExplorerLink } from "@/components/ui";
+import { getT } from "@/i18n/servidor";
+import type { Traductor } from "@/i18n/traductor";
 import { explorerTxUrl } from "@/lib/explorer";
 import type { RouteStage } from "@/modules/catalog";
 import type { DonorView } from "@/platform/db/repositories/donor";
 import { ShareButtons } from "./ShareButtons";
 
+/*
+ * Piezas de servidor (las pintan la huella pública y el perfil): toman el idioma de la petición con `getT()`.
+ * Las rutas que reciben (`sharePath`, `publicLink`) van sin prefijo de idioma; aquí se localizan.
+ */
+
 /** Lo que dice la insignia según lo que respalda: casos apoyados y voluntariados. */
-function badgeParts(view: DonorView): string[] {
+function badgeParts(view: DonorView, t: Traductor["t"], tn: Traductor["tn"]): string[] {
   const casesCount = view.cases.length;
   return [
-    casesCount > 0 ? `Apoya ${casesCount} ${casesCount === 1 ? "caso" : "casos"}` : null,
-    view.volunteerings.length > 0 ? "Voluntariado inscrito" : null,
+    casesCount > 0 ? tn("huella.insignia.apoya", casesCount) : null,
+    view.volunteerings.length > 0 ? t("huella.insignia.voluntariado") : null,
   ].filter((p): p is string => !!p);
 }
 
@@ -25,8 +31,9 @@ function badgeParts(view: DonorView): string[] {
  * Insignia «Huella verificada» como un sello de mapa: anillo punteado que gira despacio, la huella al centro y el
  * visto bueno cuando ya hay un aporte o un voluntariado. Debajo, compartir y la página pública.
  */
-export function BadgeCard({ view, sharePath, publicLink }: { view: DonorView; sharePath: string; publicLink?: string }) {
-  const parts = badgeParts(view);
+export async function BadgeCard({ view, sharePath, publicLink }: { view: DonorView; sharePath: string; publicLink?: string }) {
+  const { t, tn, ruta } = await getT();
+  const parts = badgeParts(view, t, tn);
   const active = parts.length > 0;
 
   return (
@@ -52,24 +59,24 @@ export function BadgeCard({ view, sharePath, publicLink }: { view: DonorView; sh
         </span>
       </span>
       <h2 id="titulo-insignia" className="text-4xl font-bold">
-        Huella verificada
+        {t("huella.insignia.titulo")}
       </h2>
       {active ? (
         <>
           <p className="text-lg text-white/90">{parts.join(" · ")}</p>
-          <p className="max-w-xs text-sm text-white/80">Cada aporte que la respalda se puede comprobar en Stellar Expert.</p>
-          <ShareButtons path={sharePath} text={`Mi Huella verificada en Proof of Wild: ${parts.join(" · ")}.`} />
+          <p className="max-w-xs text-sm text-white/80">{t("huella.insignia.comprobable")}</p>
+          <ShareButtons path={ruta(sharePath)} text={t("huella.insignia.compartirTexto", { partes: parts.join(" · ") })} />
           {publicLink ? (
             <Link
-              href={publicLink}
+              href={ruta(publicLink)}
               className="font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena"
             >
-              Ver la página pública de tu insignia
+              {t("huella.insignia.verPublica")}
             </Link>
           ) : null}
         </>
       ) : (
-        <p className="max-w-xs text-white/85">Se activa con tu primer aporte o voluntariado.</p>
+        <p className="max-w-xs text-white/85">{t("huella.insignia.inactiva")}</p>
       )}
     </section>
   );
@@ -79,7 +86,7 @@ export function BadgeCard({ view, sharePath, publicLink }: { view: DonorView; sh
  * Cabecera de la huella (perfil propio o página pública): la inicial en una placa redonda, el nombre que se puede
  * mostrar, la billetera y sus acciones, sobre curvas de nivel; a la derecha, el sello de la insignia.
  */
-export function DonorHeader({
+export async function DonorHeader({
   name,
   account,
   actions,
@@ -95,6 +102,7 @@ export function DonorHeader({
   seal: ReactNode;
   children?: ReactNode;
 }) {
+  const { t } = await getT();
   return (
     <Reveal
       as="header"
@@ -111,11 +119,11 @@ export function DonorHeader({
           <p className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 rounded-md border border-white/25 px-2.5 py-1 font-mono text-sm text-white/85">
               <span aria-hidden className={`h-2 w-2 rounded-full ${account ? "bg-salvia" : "bg-white/40"}`} />
-              {account ? `${account.slice(0, 4)}…${account.slice(-5)}` : "Sin billetera vinculada"}
+              {account ? `${account.slice(0, 4)}…${account.slice(-5)}` : t("huella.cabecera.sinBilletera")}
             </span>
             {verified ? (
               <span className="inline-flex items-center gap-1.5 rounded-md bg-arena px-2.5 py-1 text-sm font-semibold text-profundo">
-                <IconoEscudo className="h-4 w-4" /> Identidad verificada
+                <IconoEscudo className="h-4 w-4" /> {t("huella.cabecera.identidadVerificada")}
               </span>
             ) : null}
           </p>
@@ -129,11 +137,12 @@ export function DonorHeader({
 }
 
 /** Totales de la huella en una franja de leyenda con líneas finas. */
-export function DonorTotals({ view, own = true }: { view: DonorView; own?: boolean }) {
+export async function DonorTotals({ view, own = true }: { view: DonorView; own?: boolean }) {
+  const { t, formatAmount } = await getT();
   const items: Array<[string, string]> = [
-    ["Total aportado", formatAmount(view.totalAmount)],
-    [own ? "Casos que apoyas" : "Casos que apoya", String(view.cases.length)],
-    ["Voluntariados inscritos", String(view.volunteerings.length)],
+    [t("huella.totales.aportado"), formatAmount(view.totalAmount)],
+    [own ? t("huella.totales.casosPropios") : t("huella.totales.casosAjenos"), String(view.cases.length)],
+    [t("huella.totales.voluntariados"), String(view.volunteerings.length)],
   ];
   return (
     <Reveal as="dl" variant="sube" className="grid border-y-2 border-texto/80 sm:grid-cols-3">
@@ -148,7 +157,7 @@ export function DonorTotals({ view, own = true }: { view: DonorView; own?: boole
 }
 
 /** Mis casos (con su ruta y en qué se usó el aporte), el historial de aportes y los voluntariados de una billetera. */
-export function DonorSections({
+export async function DonorSections({
   view,
   explorerBaseUrl,
   photo,
@@ -162,17 +171,19 @@ export function DonorSections({
   /** Ruta de cada caso por código, para dibujarla junto a lo que aportó esta billetera. */
   routes?: Map<string, RouteStage[]>;
 }) {
+  const { t, ruta, formatAmount, formatDate, formatShortDate } = await getT();
+
   if (view.cases.length === 0 && view.volunteerings.length === 0) {
     return (
       <EmptyState
-        title={own ? "Aún no apadrinas ningún caso." : "Esta billetera aún no apoya ningún caso."}
+        title={own ? t("huella.vacio.propio") : t("huella.vacio.ajeno")}
         action={
-          <Link href="/#casos" className={buttonClass("primario")}>
-            Ver casos
+          <Link href={ruta("/#casos")} className={buttonClass("primario")}>
+            {t("huella.vacio.verCasos")}
           </Link>
         }
       >
-        {own ? "Elige un animal, apadrínalo con tu billetera y aquí verás en qué etapa se usó tu aporte." : null}
+        {own ? t("huella.vacio.texto") : null}
       </EmptyState>
     );
   }
@@ -182,7 +193,7 @@ export function DonorSections({
       {view.cases.length > 0 ? (
         <section aria-labelledby="mis-casos" className="space-y-5">
           <Reveal as="h2" variant="sube" id="mis-casos" className="text-4xl">
-            {own ? "Mis casos" : "Casos que apoya"}
+            {own ? t("huella.casos.propios") : t("huella.casos.ajenos")}
           </Reveal>
           {view.cases.map((c, i) => {
             const route = routes?.get(c.code);
@@ -208,7 +219,7 @@ export function DonorSections({
                 <div className="space-y-5 p-6 sm:p-7">
                   <div className="space-y-1">
                     <h3 className="text-3xl">
-                      <Link href={`/casos/${c.code}`} className="transition-colors hover:text-bosque">
+                      <Link href={ruta(`/casos/${c.code}`)} className="transition-colors hover:text-bosque">
                         {c.name}
                       </Link>
                     </h3>
@@ -219,17 +230,18 @@ export function DonorSections({
                     </p>
                     {c.lastUpdate ? (
                       <p className="pt-2">
-                        <strong>Última actualización:</strong> {formatShortDate(c.lastUpdate.at)} · {c.lastUpdate.text}
+                        <strong>{t("huella.casos.ultimaActualizacion")}</strong> {formatShortDate(c.lastUpdate.at)} ·{" "}
+                        {c.lastUpdate.text}
                       </p>
                     ) : null}
                   </div>
 
                   {route ? (
-                    <RouteMap stages={route} size="compacto" showAmounts={false} label={`Ruta del tratamiento de ${c.name}`} />
+                    <RouteMap stages={route} size="compacto" showAmounts={false} label={t("casos.rutaDe", { nombre: c.name })} />
                   ) : null}
 
                   <div className="rounded-[20px] bg-salvia p-5">
-                    <p className="font-semibold">{own ? "Tu aporte se usó en" : "Su aporte se usó en"}</p>
+                    <p className="font-semibold">{own ? t("huella.casos.usoPropio") : t("huella.casos.usoAjeno")}</p>
                     <ul className="mt-2 divide-y divide-texto/15">
                       {c.allocations.map((a) => (
                         <li key={a.stageName} className="flex items-baseline justify-between gap-4 py-1.5">
@@ -240,8 +252,8 @@ export function DonorSections({
                     </ul>
                   </div>
 
-                  <Link href={`/casos/${c.code}`} className="enlace inline-block">
-                    Ver el caso
+                  <Link href={ruta(`/casos/${c.code}`)} className="enlace inline-block">
+                    {t("huella.casos.verCaso")}
                   </Link>
                 </div>
               </Reveal>
@@ -253,10 +265,10 @@ export function DonorSections({
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Reveal as="section" variant="sube" aria-labelledby="historial" className="border-t-2 border-texto/80 pt-4">
           <h2 id="historial" className="text-3xl">
-            Historial de aportes
+            {t("huella.historial.titulo")}
           </h2>
           {view.contributions.length === 0 ? (
-            <p className="mt-3 text-secundario">Sin aportes todavía.</p>
+            <p className="mt-3 text-secundario">{t("huella.historial.vacio")}</p>
           ) : (
             <ul className="mt-3 divide-y divide-arena">
               {view.contributions.map((c) => (
@@ -270,8 +282,8 @@ export function DonorSections({
                   </span>
                   <strong className="cifras font-display text-2xl whitespace-nowrap">{formatAmount(c.amount)}</strong>
                   <span className="col-span-2 flex flex-wrap gap-x-4 text-sm">
-                    <Link href={`/comprobante/${c.txHash}`} className="enlace">
-                      Comprobante
+                    <Link href={ruta(`/comprobante/${c.txHash}`)} className="enlace">
+                      {t("huella.historial.comprobante")}
                     </Link>
                     <ExplorerLink href={explorerTxUrl(explorerBaseUrl, c.txHash)} />
                   </span>
@@ -283,19 +295,19 @@ export function DonorSections({
 
         <Reveal as="section" variant="sube" delay={1} aria-labelledby="voluntariados" className="border-t-2 border-texto/80 pt-4">
           <h2 id="voluntariados" className="text-3xl">
-            {own ? "Mis voluntariados" : "Voluntariados"}
+            {own ? t("huella.voluntariados.propios") : t("huella.voluntariados.ajenos")}
           </h2>
           {view.volunteerings.length === 0 ? (
             <p className="mt-3 text-secundario">
               {own ? (
                 <>
-                  Aún no te inscribes.{" "}
-                  <Link href="/#voluntariados" className="enlace">
-                    Ver voluntariados
+                  {t("huella.voluntariados.vacioPropio")}{" "}
+                  <Link href={ruta("/#voluntariados")} className="enlace">
+                    {t("huella.voluntariados.ver")}
                   </Link>
                 </>
               ) : (
-                "Sin voluntariados inscritos."
+                t("huella.voluntariados.vacioAjeno")
               )}
             </p>
           ) : (
@@ -307,7 +319,7 @@ export function DonorSections({
                     <span className="block font-semibold">{v.ngoName}</span>
                     <span className="block text-sm text-secundario">{v.title}</span>
                   </span>
-                  <Chip tone="logro">Inscrito</Chip>
+                  <Chip tone="logro">{t("huella.voluntariados.inscrito")}</Chip>
                 </li>
               ))}
             </ul>

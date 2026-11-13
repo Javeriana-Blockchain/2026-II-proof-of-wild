@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatAmount, formatDate } from "@/app/_lib/format";
+import { chipLabel, outcomeLabel } from "@/app/_lib/labels";
 import { IconoCheck, IconoEscudo } from "@/components/iconos";
 import { ContourField } from "@/components/mapa/ContourField";
 import { Reveal } from "@/components/movimiento/Reveal";
 import { RouteMap } from "@/components/mapa/RouteMap";
 import { Chip, EmptyState, ExplorerLink } from "@/components/ui";
+import { getT } from "@/i18n/servidor";
+import type { Clave } from "@/i18n/traductor";
 import { explorerAccountUrl, explorerTxUrl } from "@/lib/explorer";
 import { shortAccount } from "@/lib/stellar-account";
 import { getExplorerEnv } from "@/platform/config/env";
@@ -20,21 +22,21 @@ export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ slug: string }> };
 
-const KIND_LABELS = { centro_atencion: "Centro de atención y valoración", fundacion: "Fundación", ong: "ONG" } as const;
-
 /**
  * Verificación de la ONG (KYB, ADR-21): lo que se revisa antes de aprobar su perfil y dejarla recibir aportes.
  * En la demo es simulada; en producción la hace un proveedor contra el RUES y la Registraduría.
  */
-const KYB_CHECKS = [
-  ["Registro legal", "RUT y certificado de Cámara de Comercio vigentes"],
-  ["Representante legal", "Cédula, prueba de vida y rostro verificados"],
-  ["Cuenta en Stellar", "Es la que el contrato registra para sus casos"],
-] as const;
+const KYB_CHECKS: ReadonlyArray<readonly [Clave, Clave]> = [
+  ["ong.perfil.kyb.registro.titulo", "ong.perfil.kyb.registro.detalle"],
+  ["ong.perfil.kyb.representante.titulo", "ong.perfil.kyb.representante.detalle"],
+  ["ong.perfil.cuentaStellar", "ong.perfil.kyb.cuenta.detalle"],
+];
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ngo = await getPublicNgo(getDb(), (await params).slug);
-  return ngo ? { title: ngo.name, description: ngo.description } : { title: "ONG no encontrada" };
+  if (ngo) return { title: ngo.name, description: ngo.description };
+  const { t } = await getT();
+  return { title: t("ong.perfil.meta.noEncontrada") };
 }
 
 /** Pantalla 6: perfil de una ONG verificada, lo que da visibilidad a los centros poco conocidos. */
@@ -44,6 +46,8 @@ export default async function OngProfilePage({ params }: Props) {
   const ngo = await getPublicNgo(db, slug);
   if (!ngo) notFound();
 
+  const tr = await getT();
+  const { t, rich, ruta, formatAmount, formatDate } = tr;
   const explorer = getExplorerEnv().EXPLORER_BASE_URL;
   const [allCases, volunteering] = await Promise.all([getCatalogService().listCases(), listVolunteerings(db)]);
   const own = allCases.filter((c) => c.ngo.slug === ngo.slug);
@@ -51,11 +55,11 @@ export default async function OngProfilePage({ params }: Props) {
   const invoicedPct =
     Number(ngo.totals.spent) > 0 ? Math.round((Number(ngo.totals.spentWithInvoice) / Number(ngo.totals.spent)) * 100) : 100;
   const indicators: Array<[string, string]> = [
-    ["Casos atendidos", String(own.length)],
-    ["Animales liberados", String(released)],
-    ["Total recibido", formatAmount(ngo.totals.received)],
-    ["Total gastado", formatAmount(ngo.totals.spent)],
-    ["Gastos con factura", `${invoicedPct} %`],
+    [t("ong.perfil.indicador.casos"), String(own.length)],
+    [t("ong.perfil.indicador.liberados"), String(released)],
+    [t("ong.perfil.indicador.recibido"), formatAmount(ngo.totals.received)],
+    [t("ong.perfil.indicador.gastado"), formatAmount(ngo.totals.spent)],
+    [t("ong.perfil.indicador.conFactura"), t("ong.perfil.porcentaje", { n: invoicedPct })],
   ];
 
   return (
@@ -73,19 +77,19 @@ export default async function OngProfilePage({ params }: Props) {
           <h1 className="text-5xl font-bold sm:text-6xl">{ngo.name}</h1>
           <p className="flex flex-wrap gap-2">
             <Chip tone="oscuro">
-              {KIND_LABELS[ngo.kind]} · {ngo.city}
+              {t(`ong.tipo.${ngo.kind}`)} · {ngo.city}
             </Chip>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-arena px-3 py-1 text-sm font-semibold text-profundo">
-              <IconoEscudo className="h-4 w-4" /> ONG verificada
+              <IconoEscudo className="h-4 w-4" /> {t("ong.perfil.verificada")}
             </span>
           </p>
           <p className="max-w-2xl text-white/90">
             {ngo.description}
-            {ngo.foundedYear ? ` Trabajamos desde ${ngo.foundedYear}.` : ""}
+            {ngo.foundedYear ? ` ${t("ong.perfil.desde", { anio: ngo.foundedYear })}` : ""}
           </p>
         </div>
         <div className="space-y-1 border-t border-white/20 pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-          <p className="rotulo text-salvia">Cuenta en Stellar</p>
+          <p className="rotulo text-salvia">{t("ong.perfil.cuentaStellar")}</p>
           <p className="font-mono">{shortAccount(ngo.stellarAccount)}</p>
           <a
             href={explorerAccountUrl(explorer, ngo.stellarAccount)}
@@ -93,7 +97,7 @@ export default async function OngProfilePage({ params }: Props) {
             rel="noreferrer"
             className="font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena"
           >
-            Ver en Stellar Expert
+            {t("ong.verEnStellarExpert")}
           </a>
         </div>
       </Reveal>
@@ -114,10 +118,10 @@ export default async function OngProfilePage({ params }: Props) {
       <div className="grid gap-6 lg:grid-cols-[2.3fr_1fr]">
         <section aria-labelledby="casos-ong" className="space-y-4">
           <h2 id="casos-ong" className="text-3xl">
-            Casos de la ONG
+            {t("ong.perfil.casos.titulo")}
           </h2>
           {own.length === 0 ? (
-            <EmptyState title="Esta ONG aún no publica casos.">Cuando publique uno, aquí verás su historia y su ruta.</EmptyState>
+            <EmptyState title={t("ong.perfil.casos.vacioTitulo")}>{t("ong.perfil.casos.vacioTexto")}</EmptyState>
           ) : null}
           {own.map((c, i) => (
             <Reveal
@@ -140,9 +144,9 @@ export default async function OngProfilePage({ params }: Props) {
               </div>
               <div className="space-y-3 p-5 sm:p-6">
                 <p className="flex flex-wrap items-center gap-3">
-                  <span className="font-display text-2xl font-semibold">{c.commonName ?? "Especie reservada"}</span>
+                  <span className="font-display text-2xl font-semibold">{c.commonName ?? t("ong.especieReservada")}</span>
                   <Chip tone={c.chip.tone === "logro" ? "logro" : "etapa"} className="text-xs">
-                    {c.chip.label}
+                    {chipLabel(tr, c)}
                   </Chip>
                   <span className="text-sm text-secundario">{c.code}</span>
                 </p>
@@ -150,20 +154,23 @@ export default async function OngProfilePage({ params }: Props) {
                   stages={c.route}
                   size="compacto"
                   showAmounts={false}
-                  label={`Ruta del tratamiento de ${c.commonName ?? c.code}`}
+                  label={t("casos.rutaDe", { nombre: c.commonName ?? c.code })}
                   className="pt-3"
                 />
                 <p className="cifras text-sm">
-                  <strong>{formatAmount(c.raised, "")}</strong>de {formatAmount(c.goal)}
-                  {c.progressPercent >= 100 ? " · meta cumplida" : " recaudados"}
+                  {rich(
+                    c.progressPercent >= 100 ? "ong.perfil.casos.metaCumplida" : "ong.perfil.casos.recaudado",
+                    { b: (s) => <strong>{s}</strong> },
+                    { recaudado: formatAmount(c.raised, "").trim(), meta: formatAmount(c.goal) },
+                  )}
                 </p>
                 {c.recovered && c.outcomeDate ? (
                   <p className="text-sm text-secundario">
-                    {c.outcomeLabel} el {formatDate(c.outcomeDate)}
+                    {t("ong.perfil.casos.desenlace", { desenlace: outcomeLabel(tr, c.outcome, c.outcomeLabel), fecha: formatDate(c.outcomeDate) })}
                   </p>
                 ) : null}
-                <Link href={`/casos/${c.code}`} className="enlace after:absolute after:inset-0 after:content-['']">
-                  {c.recovered ? "Ver su historia" : "Ver caso"}
+                <Link href={ruta(`/casos/${c.code}`)} className="enlace after:absolute after:inset-0 after:content-['']">
+                  {c.recovered ? t("ong.perfil.casos.verHistoria") : t("ong.perfil.casos.verCaso")}
                 </Link>
               </div>
             </Reveal>
@@ -176,7 +183,7 @@ export default async function OngProfilePage({ params }: Props) {
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-profundo text-crema">
                 <IconoEscudo className="h-5 w-5" />
               </span>
-              ONG verificada
+              {t("ong.perfil.verificada")}
             </h2>
             <ul className="space-y-3">
               {KYB_CHECKS.map(([title, detail]) => (
@@ -185,21 +192,19 @@ export default async function OngProfilePage({ params }: Props) {
                     <IconoCheck className="h-3.5 w-3.5" />
                   </span>
                   <span>
-                    <strong className="block leading-snug">{title}</strong>
-                    <span className="text-sm text-secundario">{detail}</span>
+                    <strong className="block leading-snug">{t(title)}</strong>
+                    <span className="text-sm text-secundario">{t(detail)}</span>
                   </span>
                 </li>
               ))}
             </ul>
-            <p className="rounded-[14px] bg-crema px-3 py-2 text-sm">
-              Verificación simulada en la demo. En producción la hace un proveedor contra el RUES y la Registraduría.
-            </p>
+            <p className="rounded-[14px] bg-crema px-3 py-2 text-sm">{t("ong.perfil.kyb.nota")}</p>
           </Reveal>
 
           <section className="space-y-3 border-t-2 border-texto/80 pt-4">
-            <h2 className="text-2xl">Voluntariados</h2>
+            <h2 className="text-2xl">{t("ong.perfil.voluntariados.titulo")}</h2>
             {volunteering.filter((v) => v.ngo.slug === ngo.slug).length === 0 ? (
-              <p className="text-secundario">Por ahora no tiene jornadas abiertas.</p>
+              <p className="text-secundario">{t("ong.perfil.voluntariados.vacio")}</p>
             ) : (
               volunteering
                 .filter((v) => v.ngo.slug === ngo.slug)
@@ -209,15 +214,15 @@ export default async function OngProfilePage({ params }: Props) {
                   </p>
                 ))
             )}
-            <Link href="/#voluntariados" className="enlace">
-              Ver voluntariados
+            <Link href={ruta("/#voluntariados")} className="enlace">
+              {t("ong.perfil.voluntariados.ver")}
             </Link>
           </section>
 
           <section className="space-y-3 border-t-2 border-texto/80 pt-4">
-            <h2 className="text-2xl">Gastos recientes</h2>
+            <h2 className="text-2xl">{t("ong.perfil.gastos.titulo")}</h2>
             {ngo.recentExpenses.length === 0 ? (
-              <p className="text-secundario">Todavía no hay gastos registrados.</p>
+              <p className="text-secundario">{t("ong.perfil.gastos.vacio")}</p>
             ) : (
               <ul className="divide-y divide-arena/50">
                 {ngo.recentExpenses.map((e) => (
@@ -225,7 +230,7 @@ export default async function OngProfilePage({ params }: Props) {
                     <span>
                       {e.label} · {e.caseCode}{" "}
                       <ExplorerLink href={explorerTxUrl(explorer, e.txHash)}>
-                        <span className="sr-only">Ver el pago en Stellar Expert</span>
+                        <span className="sr-only">{t("ong.perfil.gastos.verPago")}</span>
                       </ExplorerLink>
                     </span>
                     <strong className="cifras whitespace-nowrap">{formatAmount(e.amount)}</strong>

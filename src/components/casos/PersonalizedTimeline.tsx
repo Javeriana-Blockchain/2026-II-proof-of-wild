@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useWallet } from "@/components/billetera/WalletProvider";
+import { useT } from "@/i18n/cliente";
 import type { PublicStage } from "@/modules/catalog";
 import { StageTimeline } from "./StageTimeline";
 
@@ -10,6 +11,7 @@ import { StageTimeline } from "./StageTimeline";
  * el aporte de esa billetera. Sin billetera (o sin aportes a este caso) se ve igual, sin «Tu aporte».
  */
 export function PersonalizedTimeline({ caseCode, stages }: { caseCode: string; stages: PublicStage[] }) {
+  const { t } = useT();
   const { address } = useWallet();
   const [mine, setMine] = useState<Record<number, string> | null>(null);
 
@@ -33,7 +35,7 @@ export function PersonalizedTimeline({ caseCode, stages }: { caseCode: string; s
       {mine ? (
         <p className="ml-auto flex w-fit items-center gap-2 rounded-full bg-salvia px-4 py-2 text-sm font-semibold">
           <span aria-hidden className="h-2 w-2 rounded-full bg-profundo" />
-          Billetera conectada: se muestra tu aporte
+          {t("casos.linea.conAporte")}
         </p>
       ) : null}
       <StageTimeline stages={stages} myAllocations={allocations} />

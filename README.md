@@ -23,6 +23,7 @@ Los hashes son transacciones reales del caso `POW_002` (tortuga hicotea, Fundaci
 | Verificación de identidad | Para aportar más de 50 USDC: documento, prueba de vida y comparación del rostro | Fuera de la red (consulta al registro simulada) | — |
 | Mi perfil · Huella verificada | Ve en qué se usó su aporte y comparte su insignia | Lectura | — |
 | Voluntariados | Se inscribe a una jornada de una ONG | Fuera de la red | — |
+| Selector de idioma (ES · EN · PT) | Cambia toda la página a inglés o portugués (rutas `/en` y `/pt`); lo que escriben las ONG se ve en su idioma original | Fuera de la red | — |
 
 **Doble comprobación de la factura.** La factura de ese gasto está publicada. Su SHA-256 es el mismo que el último argumento (`hash_factura`) de la transacción `registrar_gasto` de arriba:
 
@@ -217,6 +218,16 @@ La integración continua (GitHub Actions) corre tipos, pruebas con PostgreSQL y 
 - **Apadrinar exige una cuenta de persona** con la sesión iniciada: el servidor rechaza preparar o enviar un aporte sin ella (401) o con una cuenta de ONG o de administrador (403). Sin cuenta, «Apadrinar» abre una invitación y al crear la cuenta o ingresar se vuelve al caso con la ventana abierta.
 - **Verificación de identidad por niveles (KYC basado en riesgo):** hasta 50 USDC basta la cuenta; para aportes mayores el servidor exige identidad verificada (403 `verification_required`). La verificación en `/cuenta/verificar` tiene cuatro pasos: foto del documento (cédula o pasaporte), prueba de vida (mirar de frente, parpadear y girar la cabeza), comparación del rostro con el del documento (desde 50 % de coincidencia) y consulta al registro, **simulada** (un documento que termina en `0000` «no aparece»). La biometría corre en el navegador con `@vladmandic/human` y las imágenes nunca salen del equipo; se guarda solo el resultado (HMAC y últimos 4 dígitos del documento, método, coincidencia y autorización de datos sensibles). Se puede borrar desde «Mi perfil». Si la cámara falla, «Simular la verificación (demo)» la completa y queda marcada como simulada.
 
+### Idiomas
+
+La plataforma está en **español, inglés y portugués de Brasil**, como kiba.tools: el español va sin prefijo (`/casos/POW_001`) y los otros con prefijo (`/en/casos/POW_001`, `/pt/casos/POW_001`). El selector ES · EN · PT del menú cambia la página entera y la plataforma recuerda la elección en una cookie.
+
+- `src/proxy.ts` quita el prefijo, sirve la ruta sin prefijo y le pasa el idioma a la página; `/api` responde en el idioma de la cookie.
+- Los textos están en `src/i18n/mensajes/<área>.ts` (`comun`, `inicio`, `casos`, `cuenta`, `ong`, `huella`, `errores`). El español es la fuente y el compilador avisa si a una clave le falta el inglés o el portugués.
+- En un componente de servidor: `const { t, ruta } = await getT();` (`@/i18n/servidor`); en uno de cliente: `const { t, ruta } = useT();` (`@/i18n/cliente`). Todo enlace interno pasa por `ruta()`.
+- Los errores del dominio se escriben en español y se traducen al responder (`traducirError`).
+- No se traduce lo que escriben las ONG: historias, etapas y voluntariados se ven como los escribieron.
+
 ### Tecnologías
 
 | Parte | Tecnología |
@@ -237,6 +248,7 @@ contracts/proof-of-wild/  Contrato Soroban (Rust) y sus pruebas
 scripts/                  Preparación de la red y de las imágenes, y prueba de punta a punta
 src/
   app/            Presentación (Next.js): páginas, layouts, acciones y rutas API
+  i18n/           Idiomas: configuración, traductor y diccionarios por área (español, inglés y portugués)
   components/     Interfaz: inicio, casos, huella (perfil e insignia), identidad (verificación con cámara),
                   mapa (ruta y curvas de nivel), movimiento, estados, sitio y billetera
   modules/        Dominio y aplicación por capacidad (cases, catalog, contributions, identity, records, shared)
@@ -245,8 +257,8 @@ src/
   lib/            Utilidades sin lógica de negocio
 public/           Fotos de la demo (sin EXIF), fotos por etapa, logo y modelos de la biometría
 drizzle/          Migraciones SQL
-docs/             Arquitectura (ADR-01 a ADR-21) y pitch
-tests/            Pruebas de dominio, adaptadores e integración
+docs/             Arquitectura (ADR-01 a ADR-22) y pitch
+tests/            Pruebas de dominio, adaptadores, idiomas e integración
 ```
 
 ### Seguridad

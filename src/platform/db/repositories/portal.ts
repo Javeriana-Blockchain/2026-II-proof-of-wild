@@ -17,7 +17,10 @@ export interface PortalRecord {
   at: string;
   kind: "gasto" | "aporte" | "hito";
   caseCode: string;
-  detail: string;
+  /** Etapa del gasto o del hito; nula en un aporte. */
+  stage: number | null;
+  /** Proveedor del gasto o descripción del hito, tal como están en la base; nulo en un aporte. */
+  text: string | null;
   amount: string | null;
   status: "presentado" | "revisado" | "verificado_independiente" | "en_la_red" | "por_confirmar";
   txHash: string | null;
@@ -30,8 +33,17 @@ export interface PortalData {
   totals: { received: string; spent: string };
   records: PortalRecord[];
   /** Etapas en curso sin hito confirmado y registros que la red aún no confirma. */
-  pending: Array<{ title: string; detail: string; tone: "accion" | "espera" }>;
+  pending: PortalPending[];
 }
+
+/**
+ * Pendientes del portal, como datos: la página arma el texto en su idioma.
+ * - `subir_foto`: una etapa en curso todavía sin hito confirmado.
+ * - `por_confirmar`: un gasto o un hito que la red aún no confirma.
+ */
+export type PortalPending =
+  | { kind: "subir_foto"; stage: number; stageName: string; caseCode: string; tone: "accion" }
+  | { kind: "por_confirmar"; record: "gasto" | "hito"; caseCode: string; tone: "espera" };
 
 /** Lo que ve una ONG en su portal (pantalla 9). Solo sus casos. */
 export async function getPortalData(db: Db, ngoId: string): Promise<PortalData | null> {
@@ -126,7 +138,8 @@ export async function getPortalData(db: Db, ngoId: string): Promise<PortalData |
         at: e.at.toISOString(),
         kind: "gasto" as const,
         caseCode: codeOf.get(e.caseId) ?? "",
-        detail: `Etapa ${e.stage} · ${e.provider}`,
+        stage: e.stage,
+        text: e.provider,
         amount: e.amount,
         status: status(e.status, e.level),
         txHash: e.txHash,
@@ -136,7 +149,8 @@ export async function getPortalData(db: Db, ngoId: string): Promise<PortalData |
       at: (c.at ?? new Date(0)).toISOString(),
       kind: "aporte" as const,
       caseCode: codeOf.get(c.caseId) ?? "",
-      detail: "Aporte recibido",
+      stage: null,
+      text: null,
       amount: c.amount,
       status: "en_la_red" as const,
       txHash: c.txHash,
@@ -148,7 +162,8 @@ export async function getPortalData(db: Db, ngoId: string): Promise<PortalData |
         at: m.at.toISOString(),
         kind: "hito" as const,
         caseCode: codeOf.get(m.caseId) ?? "",
-        detail: `Etapa ${m.stage} · ${m.description}`,
+        stage: m.stage,
+        text: m.description,
         amount: null,
         status: status(m.status, m.level),
         txHash: m.txHash,
@@ -173,13 +188,20 @@ export async function getPortalData(db: Db, ngoId: string): Promise<PortalData |
     ...stageRows
       .filter((s) => activeIds.has(s.caseId) && statusOf.get(s.id) === "en_curso" && !withMilestone.has(s.id))
       .map((s) => ({
-        title: "Subir la foto del avance",
-        detail: `Etapa ${s.position} · ${s.name} · ${codeOf.get(s.caseId)}`,
+        kind: "subir_foto" as const,
+        stage: s.position,
+        stageName: s.name,
+        caseCode: codeOf.get(s.caseId) ?? "",
         tone: "accion" as const,
       })),
     ...records
-      .filter((r) => r.status === "por_confirmar")
-      .map((r) => ({ title: "Esperando la confirmación de la red", detail: `${r.kind === "gasto" ? "Gasto" : "Hito"} · ${r.caseCode}`, tone: "espera" as const })),
+      .filter((r) => r.status === "por_confirmar" && r.kind !== "aporte")
+      .map((r) => ({
+        kind: "por_confirmar" as const,
+        record: r.kind === "gasto" ? ("gasto" as const) : ("hito" as const),
+        caseCode: r.caseCode,
+        tone: "espera" as const,
+      })),
   ];
 
   return {

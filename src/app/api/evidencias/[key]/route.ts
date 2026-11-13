@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getT } from "@/i18n/servidor";
 import { getEvidenceStorage } from "@/platform/container";
 import { EVIDENCE_KEY_PATTERN } from "@/platform/storage";
 
@@ -17,9 +18,7 @@ const CONTENT_TYPES: Record<string, string> = {
  */
 export async function GET(_request: Request, context: { params: Promise<{ key: string }> }) {
   const { key } = await context.params;
-  if (!EVIDENCE_KEY_PATTERN.test(key)) {
-    return NextResponse.json({ error: { code: "not_found", message: "Evidencia no encontrada." } }, { status: 404 });
-  }
+  if (!EVIDENCE_KEY_PATTERN.test(key)) return notFound();
   try {
     const data = await getEvidenceStorage().read(key);
     const extension = key.split(".").pop() ?? "";
@@ -33,6 +32,14 @@ export async function GET(_request: Request, context: { params: Promise<{ key: s
       },
     });
   } catch {
-    return NextResponse.json({ error: { code: "not_found", message: "Evidencia no encontrada." } }, { status: 404 });
+    return notFound();
   }
+}
+
+async function notFound() {
+  const { t } = await getT();
+  return NextResponse.json(
+    { error: { code: "not_found", message: t("errores.archivo.evidenciaNoEncontrada") } },
+    { status: 404 },
+  );
 }

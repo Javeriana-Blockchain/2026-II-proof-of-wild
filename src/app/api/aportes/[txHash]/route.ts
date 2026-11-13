@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getContributionService } from "@/platform/container";
-import { errorResponse } from "../../_lib/http";
+import { errorResponse, withTranslatedMessage } from "../../_lib/http";
 
 export const dynamic = "force-dynamic";
 
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: Request, context: { params: Promise<{ txHash: string }> }) {
   try {
     const { txHash } = await context.params;
-    return NextResponse.json(await getContributionService().refresh(txHash.toLowerCase()));
+    const result = await getContributionService().refresh(txHash.toLowerCase());
+    return NextResponse.json(await withTranslatedMessage(result));
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,23 +1,33 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { formatAmount } from "@/app/_lib/format";
+import { chipLabel } from "@/app/_lib/labels";
 import { RouteMap } from "@/components/mapa/RouteMap";
 import { buttonClass, Chip, ProgressBar } from "@/components/ui";
+import { useT } from "@/i18n/cliente";
 import type { PublicCaseSummary } from "@/modules/catalog";
 import { Reveal } from "@/components/movimiento/Reveal";
+
+/*
+ * De cliente para que tome el idioma del contexto tanto si la pinta una página de servidor como un componente de
+ * cliente; sus props son datos planos.
+ */
 
 /**
  * Hoja de ruta de un caso (en la página principal y en el perfil de la ONG): la foto grande, el animal, su historia
  * corta, la ruta del tratamiento etapa por etapa y cuánto se ha cubierto.
  */
 export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: number }) {
-  const name = item.commonName ?? "Especie reservada";
+  const tr = useT();
+  const { t, ruta, formatAmount } = tr;
+  const name = item.commonName ?? t("casos.especieReservada");
   return (
     <Reveal as="article" variant="capa" delay={delay}
       className="group/caso grid overflow-hidden rounded-[28px] bg-white ring-1 ring-arena/60 hover:ring-bosque/60 transition-[box-shadow,transform] duration-300 ease-(--ease-out-expo) hover:-translate-y-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]"
     >
       <Link
-        href={`/casos/${item.code}`}
+        href={ruta(`/casos/${item.code}`)}
         tabIndex={-1}
         aria-hidden
         className="relative block min-h-64 overflow-hidden bg-salvia lg:min-h-full"
@@ -32,14 +42,14 @@ export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: 
           />
         ) : null}
         <span className="absolute top-4 left-4">
-          <Chip tone={item.chip.tone === "logro" ? "logro" : "etapa"}>{item.chip.label}</Chip>
+          <Chip tone={item.chip.tone === "logro" ? "logro" : "etapa"}>{chipLabel(tr, item)}</Chip>
         </span>
       </Link>
 
       <div className="flex flex-col gap-5 p-6 sm:p-8">
         <div className="space-y-2">
           <h3 className="text-4xl">
-            <Link href={`/casos/${item.code}`} className="transition-colors hover:text-bosque">
+            <Link href={ruta(`/casos/${item.code}`)} className="transition-colors hover:text-bosque">
               {name}
             </Link>
           </h3>
@@ -48,38 +58,40 @@ export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: 
             {item.scientificName ? <span aria-hidden>·</span> : null}
             <span className="cifras text-sm font-semibold">{item.code}</span>
             <span aria-hidden>·</span>
-            <Link href={`/ong/${item.ngo.slug}`} className="enlace text-sm">
+            <Link href={ruta(`/ong/${item.ngo.slug}`)} className="enlace text-sm">
               {item.ngo.name}
             </Link>
           </p>
           <p className="max-w-prose pt-1 text-lg">{item.shortStory}</p>
         </div>
 
-        <RouteMap stages={item.route} size="compacto" label={`Ruta del tratamiento de ${name}`} className="py-2" />
+        <RouteMap stages={item.route} size="compacto" label={t("casos.rutaDe", { nombre: name })} className="py-2" />
 
         <div className="mt-auto grid items-end gap-4 border-t border-arena/60 pt-5 sm:grid-cols-[1fr_auto]">
           <div className="space-y-2">
             <p className="flex flex-wrap items-baseline gap-x-2">
               <span className="cifras font-display text-3xl font-bold">{formatAmount(item.raised, "")}</span>
               <span className="text-secundario">
-                de {formatAmount(item.goal)} {item.progressPercent >= 100 ? "· meta cumplida" : "recaudados"}
+                {item.progressPercent >= 100
+                  ? t("casos.fila.deMetaCumplida", { meta: formatAmount(item.goal) })
+                  : t("casos.fila.deRecaudados", { meta: formatAmount(item.goal) })}
               </span>
             </p>
             <ProgressBar percent={item.progressPercent} />
           </div>
           {item.recovered ? (
-            <Link href={`/casos/${item.code}`} className={buttonClass("secundario")}>
-              Ver su historia
+            <Link href={ruta(`/casos/${item.code}`)} className={buttonClass("secundario")}>
+              {t("casos.fila.verHistoria")}
             </Link>
           ) : (
             <div className="flex flex-wrap gap-2">
               {item.progressPercent < 100 ? (
-                <Link href={`/casos/${item.code}?apadrinar=1`} className={buttonClass("primario")}>
-                  Apadrinar
+                <Link href={ruta(`/casos/${item.code}?apadrinar=1`)} className={buttonClass("primario")}>
+                  {t("casos.fila.apadrinar")}
                 </Link>
               ) : null}
-              <Link href={`/casos/${item.code}`} className={buttonClass("secundario")}>
-                Ver caso
+              <Link href={ruta(`/casos/${item.code}`)} className={buttonClass("secundario")}>
+                {t("casos.fila.verCaso")}
               </Link>
             </div>
           )}
@@ -91,7 +103,9 @@ export function CaseRow({ item, delay = 0 }: { item: PublicCaseSummary; delay?: 
 
 /** Caso recuperado, en formato corto: la foto, el resultado y su historia. */
 export function RecoveredCard({ item, delay = 0 }: { item: PublicCaseSummary; delay?: number }) {
-  const name = item.commonName ?? "Especie reservada";
+  const tr = useT();
+  const { t, ruta, formatAmount } = tr;
+  const name = item.commonName ?? t("casos.especieReservada");
   return (
     <Reveal as="article" variant="pop" delay={delay}
       className="group/rec relative overflow-hidden rounded-[24px] bg-white ring-1 ring-arena/60 hover:ring-bosque/60 transition-[transform,box-shadow,--tw-ring-color] duration-300 ease-(--ease-spring) hover:-translate-y-1"
@@ -107,7 +121,7 @@ export function RecoveredCard({ item, delay = 0 }: { item: PublicCaseSummary; de
           />
         ) : null}
         <span className="absolute top-3 left-3">
-          <Chip tone={item.chip.tone === "logro" ? "logro" : "etapa"}>{item.chip.label}</Chip>
+          <Chip tone={item.chip.tone === "logro" ? "logro" : "etapa"}>{chipLabel(tr, item)}</Chip>
         </span>
       </div>
       <div className="space-y-1 p-5">
@@ -117,10 +131,10 @@ export function RecoveredCard({ item, delay = 0 }: { item: PublicCaseSummary; de
           {formatAmount(item.raised)} · {item.ngo.name}
         </p>
         <Link
-          href={`/casos/${item.code}`}
+          href={ruta(`/casos/${item.code}`)}
           className="enlace mt-2 inline-flex items-center gap-1 after:absolute after:inset-0 after:content-['']"
         >
-          Ver su historia
+          {t("casos.fila.verHistoria")}
         </Link>
       </div>
     </Reveal>

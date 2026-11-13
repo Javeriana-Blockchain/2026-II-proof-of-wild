@@ -1,4 +1,5 @@
 import type { Config, FaceResult, Human } from "@vladmandic/human";
+import type { Traductor } from "@/i18n/traductor";
 
 /**
  * Biometría en el navegador con `@vladmandic/human` (ADR-21): detecta el rostro, su malla de puntos, si es real
@@ -122,9 +123,12 @@ export async function fileToCanvas(file: File): Promise<HTMLCanvasElement> {
   return canvas;
 }
 
-/** Abre la cámara. `environment` prefiere la trasera (para el documento en el celular). */
-export async function openCamera(facing: "user" | "environment"): Promise<MediaStream> {
-  if (!navigator.mediaDevices?.getUserMedia) throw new Error("Este navegador no permite usar la cámara.");
+/**
+ * Abre la cámara. `environment` prefiere la trasera (para el documento en el celular). Si falla, lanza un error con
+ * un mensaje apto para mostrar, en el idioma de `t`.
+ */
+export async function openCamera(facing: "user" | "environment", t: Traductor["t"]): Promise<MediaStream> {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error(t("cuenta.identidad.camara.sinSoporte"));
   try {
     return await navigator.mediaDevices.getUserMedia({
       audio: false,
@@ -132,9 +136,9 @@ export async function openCamera(facing: "user" | "environment"): Promise<MediaS
     });
   } catch (error) {
     const name = error instanceof DOMException ? error.name : "";
-    if (name === "NotAllowedError") throw new Error("No diste permiso para usar la cámara. Actívalo en el navegador e inténtalo de nuevo.");
-    if (name === "NotFoundError") throw new Error("No encontramos una cámara en este equipo.");
-    throw new Error("No pudimos abrir la cámara.");
+    if (name === "NotAllowedError") throw new Error(t("cuenta.identidad.camara.sinPermiso"));
+    if (name === "NotFoundError") throw new Error(t("cuenta.identidad.camara.sinCamara"));
+    throw new Error(t("cuenta.identidad.camara.noAbre"));
   }
 }
 
