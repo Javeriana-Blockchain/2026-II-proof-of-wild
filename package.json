@@ -1,0 +1,56 @@
+{
+  "name": "proof-of-wild",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Apadrina la recuperación de fauna silvestre rescatada y verifica en Stellar en qué se usó tu aporte.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs migrate",
+    "db:seed": "tsx --env-file-if-exists=.env src/platform/db/seed.ts",
+    "db:seed:activity": "tsx --env-file-if-exists=.env src/platform/db/seed.ts --with-activity",
+    "db:fotos": "tsx --env-file-if-exists=.env scripts/fotos-a-bd.ts",
+    "test:integration": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run tests/integration",
+    "contrato:test": "cargo test --locked --manifest-path contracts/proof-of-wild/Cargo.toml",
+    "contrato:build": "cargo build --locked --release --target wasm32v1-none --manifest-path contracts/proof-of-wild/Cargo.toml",
+    "red:preparar": "tsx --env-file-if-exists=.env scripts/preparar-red.ts",
+    "red:probar": "tsx --env-file-if-exists=.env scripts/probar-red.ts",
+    "red:usdc": "tsx --env-file-if-exists=.env scripts/enviar-usdc.ts"
+  },
+  "dependencies": {
+    "@creit.tech/stellar-wallets-kit": "^2.8.0",
+    "@stellar/freighter-api": "^6.0.1",
+    "@stellar/stellar-sdk": "^17.4.0",
+    "@vladmandic/human": "3.3.6",
+    "drizzle-orm": "^0.45.4",
+    "jose": "^6.2.15",
+    "next": "^16.4.5",
+    "postgres": "^3.4.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "secure-remote-password": "^0.3.1",
+    "sharp": "^0.35.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.4",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "drizzle-kit": "^0.31.11",
+    "tailwindcss": "^4.3.4",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.1.0"
+  }
+}

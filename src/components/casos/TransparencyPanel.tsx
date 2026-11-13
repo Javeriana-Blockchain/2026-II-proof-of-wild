@@ -1,0 +1,103 @@
+import { categoryLabel } from "@/app/_lib/labels";
+import { EmptyState, ExplorerLink, ValidationChip } from "@/components/ui";
+import { getT } from "@/i18n/servidor";
+import type { PublicCaseDetail } from "@/modules/catalog";
+import { Reveal } from "@/components/movimiento/Reveal";
+
+/**
+ * Panel de transparencia: recibido, gastado y disponible; desglose por necesidad y la lista de gastos con
+ * doble confirmación: la factura publicada y el pago al proveedor en Stellar Expert. Componente de servidor.
+ */
+export async function TransparencyPanel({ transparency }: { transparency: PublicCaseDetail["transparency"] }) {
+  const { t, formatAmount, formatShortDate } = await getT();
+  const totals = [
+    { label: t("casos.transparencia.recibido"), value: transparency.received, plate: "bg-bosque text-white", sub: "text-white/80" },
+    { label: t("casos.transparencia.gastado"), value: transparency.spent, plate: "bg-arena text-texto", sub: "text-texto/75" },
+    { label: t("casos.transparencia.disponible"), value: transparency.available, plate: "bg-salvia text-texto", sub: "text-texto/75" },
+  ];
+  const maxCategory = Math.max(1, ...transparency.byCategory.map((c) => Number(c.amount)));
+
+  return (
+    <div className="space-y-5">
+      <dl className="grid gap-4 sm:grid-cols-3">
+        {totals.map((total, i) => (
+          <Reveal variant="pop" delay={i} key={total.label} className={`rounded-[24px] p-6 ${total.plate}`}>
+            <dt className={`rotulo ${total.sub}`}>{total.label}</dt>
+            <dd className="cifras mt-1 font-display text-4xl font-bold">{formatAmount(total.value)}</dd>
+          </Reveal>
+        ))}
+      </dl>
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_2.3fr]">
+        <Reveal as="section" variant="sube" className="rounded-[24px] bg-white p-6 ring-1 ring-arena/70" aria-labelledby="desglose">
+          <h3 id="desglose" className="mb-4 text-2xl">
+            {t("casos.transparencia.desglose")}
+          </h3>
+          <dl className="space-y-3">
+            {transparency.byCategory.map((c) => {
+              const value = Number(c.amount);
+              return (
+                <div key={c.category}>
+                  <div className="flex justify-between gap-4">
+                    <dt className={value > 0 ? "" : "text-secundario"}>{categoryLabel(t, c.category)}</dt>
+                    <dd className={`cifras ${value > 0 ? "font-semibold" : "text-secundario"}`}>{formatAmount(c.amount)}</dd>
+                  </div>
+                  <div aria-hidden className="mt-1 h-1.5 rounded-full bg-arena/40">
+                    <div className="h-full rounded-full bg-bosque" style={{ width: `${(value / maxCategory) * 100}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </dl>
+        </Reveal>
+
+        <Reveal as="section" variant="sube" delay={1} className="overflow-x-auto rounded-[24px] bg-white p-6 ring-1 ring-arena/70" aria-labelledby="gastos">
+          <h3 id="gastos" className="mb-4 text-2xl">
+            {t("casos.transparencia.gastos")}
+          </h3>
+          {transparency.expenses.length === 0 ? (
+            <EmptyState title={t("casos.transparencia.vacioTitulo")} className="py-8">
+              {t("casos.transparencia.vacioTexto")}
+            </EmptyState>
+          ) : (
+            <table className="w-full min-w-[40rem] text-left">
+              <thead className="rotulo border-b border-arena text-secundario">
+                <tr>
+                  <th className="py-2 font-bold">{t("casos.col.fecha")}</th>
+                  <th className="py-2 font-bold">{t("casos.col.etapa")}</th>
+                  <th className="py-2 font-bold">{t("casos.col.monto")}</th>
+                  <th className="py-2 font-bold">{t("casos.col.validacion")}</th>
+                  <th className="py-2 font-bold">{t("casos.col.comprobar")}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-arena/40">
+                {transparency.expenses.map((e) => (
+                  <tr key={e.txUrl} className="transition-colors hover:bg-crema/60">
+                    <td className="cifras py-3 pr-3 whitespace-nowrap">{formatShortDate(e.occurredOn)}</td>
+                    <td className="py-3 pr-3">
+                      {e.stagePosition}. {e.concept}
+                      <span className="block text-sm text-secundario">
+                        {e.providerName} · {e.invoiceNumber}
+                      </span>
+                    </td>
+                    <td className="cifras py-3 pr-3 font-semibold whitespace-nowrap">{formatAmount(e.amount)}</td>
+                    <td className="py-3 pr-3">
+                      <ValidationChip level={e.validationLevel} short />
+                    </td>
+                    <td className="py-3 whitespace-nowrap">
+                      <a href={e.invoiceUrl} target="_blank" rel="noreferrer" className="enlace">
+                        {t("casos.factura")}
+                      </a>{" "}
+                      · <ExplorerLink href={e.txUrl} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className="mt-4 text-sm text-secundario">{t("casos.transparencia.nota")}</p>
+        </Reveal>
+      </div>
+    </div>
+  );
+}

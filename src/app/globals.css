@@ -1,0 +1,285 @@
+@import "tailwindcss";
+
+/*
+ * Proof of Wild — «Mapa de liberación».
+ * La paleta es fija (documento de pantallas, página 22); el mundo es una hoja topográfica: bandas planas de curvas
+ * de nivel, rutas punteadas y rótulos de leyenda. Profundidad solo por capas planas superpuestas, sin degradados.
+ * Contraste mínimo: 4,5:1 para texto normal y 3:1 para texto grande e íconos.
+ */
+@theme {
+  --color-profundo: #2c4f33; /* portada, pie, bandas oscuras del mapa */
+  --color-bosque: #386641; /* principal: menú, botones, enlaces, ruta, «verificado» */
+  --color-salvia: #a7b894; /* «Tu aporte», capas medias del mapa */
+  --color-arena: #d8c299; /* chips de etapa, bordes, capas claras */
+  --color-crema: #f2e8cf; /* fondo general: el papel del mapa */
+  --color-gris: #f5f5f5; /* desactivados */
+  --color-texto: #1f2a22; /* texto normal */
+  --color-secundario: #4a5a4e; /* textos secundarios */
+  --color-error: #b23a2e; /* avisos de error, con texto blanco encima */
+
+  /* Títulos: slab de señalización de parque. Texto y rótulos: grotesca de anchos variables. */
+  --font-display: var(--font-zilla), "Rockwell", Georgia, serif;
+  --font-serif: var(--font-zilla), "Rockwell", Georgia, serif;
+  --font-sans: var(--font-archivo), system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spring-soft: cubic-bezier(0.34, 1.3, 0.64, 1);
+
+  --animate-latido: latido 2.2s var(--ease-out-expo) infinite;
+  --animate-brillo: brillo 1.6s ease-in-out infinite;
+  --animate-giro: giro 0.8s linear infinite;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* El menú es fijo: cada sección (y cada ancla) aterriza debajo de él. */
+[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  background: var(--color-crema);
+  color: var(--color-texto);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-variation-settings: "wdth" 100;
+  caret-color: var(--color-bosque);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: var(--color-salvia);
+  color: var(--color-texto);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-bosque);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+a {
+  text-underline-offset: 0.2em;
+  text-decoration-thickness: 1.5px;
+}
+
+/* Barra de scroll del papel del mapa. */
+html {
+  scrollbar-color: var(--color-bosque) var(--color-crema);
+}
+
+/* Cifras que se comparan entre sí: montos, cupos, códigos. */
+.cifras {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rótulo de leyenda del mapa: versalitas condensadas. */
+.rotulo {
+  font-family: var(--font-sans);
+  font-variation-settings: "wdth" 75;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+/* Nombre científico: itálica, como la hidrografía de un mapa. */
+.cientifico {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* Enlace de texto: el subrayado se dibuja al pasar. */
+.enlace {
+  color: var(--color-bosque);
+  font-weight: 600;
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, var(--color-bosque) 35%, transparent);
+  transition:
+    text-decoration-color 160ms var(--ease-out-expo),
+    text-underline-offset 160ms var(--ease-out-expo);
+}
+.enlace:hover {
+  text-decoration-color: currentColor;
+  text-underline-offset: 0.3em;
+}
+
+/*
+ * Aparición al hacer scroll. El contenido es visible por defecto: solo se oculta cuando el script de la cabecera
+ * marcó <html data-reveal="on">, y el observador lo muestra al entrar en pantalla. La animación usa fill «backwards»
+ * para que, al terminar, los efectos de hover vuelvan a mandar sobre transform.
+ */
+:root[data-reveal="on"] [data-reveal]:not(.is-visible) {
+  opacity: 0;
+}
+
+[data-reveal].is-visible {
+  animation-duration: 0.62s;
+  animation-timing-function: var(--ease-spring);
+  animation-fill-mode: backwards;
+  animation-delay: calc(var(--d, 0) * 85ms);
+}
+[data-reveal="pop"].is-visible {
+  animation-name: aparece-pop;
+}
+[data-reveal="sube"].is-visible {
+  animation-name: aparece-sube;
+  animation-timing-function: var(--ease-out-expo);
+}
+[data-reveal="capa"].is-visible {
+  animation-name: aparece-capa;
+  animation-duration: 0.75s;
+  animation-timing-function: var(--ease-out-expo);
+}
+
+@keyframes aparece-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.84) translateY(26px);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+@keyframes aparece-sube {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+}
+/* Una capa de papel que se asienta sobre la de abajo. */
+@keyframes aparece-capa {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateX(9deg) translateY(30px) scale(0.95);
+    clip-path: inset(0 0 18% 0 round 28px);
+  }
+  to {
+    clip-path: inset(0 0 0 0 round 28px);
+  }
+}
+
+/* La ruta punteada se traza al aparecer. */
+.ruta-trazo {
+  stroke-dasharray: var(--largo, 1200);
+  stroke-dashoffset: 0;
+}
+:root[data-reveal="on"] [data-reveal] .ruta-trazo {
+  stroke-dashoffset: var(--largo, 1200);
+}
+:root[data-reveal="on"] [data-reveal].is-visible .ruta-trazo {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1.4s var(--ease-out-expo) 0.25s;
+}
+
+@keyframes latido {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  70%,
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+@keyframes brillo {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@keyframes giro {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-reveal="on"] [data-reveal]:not(.is-visible) {
+    opacity: 1;
+  }
+  [data-reveal].is-visible {
+    animation: none;
+  }
+  :root[data-reveal="on"] [data-reveal] .ruta-trazo {
+    stroke-dashoffset: 0;
+  }
+  /* El latido del «aquí va» se queda quieto; el color y el estado siguen diciendo dónde va la ruta. */
+  .animate-latido {
+    animation: none;
+    opacity: 0;
+  }
+  /* Sin desplazamientos al pasar el mouse; los cambios de color se mantienen. */
+  .mov-hover:hover,
+  .mov-hover:active {
+    transform: none !important;
+  }
+}
+
+/* Ventanas (apadrinar, inscribirse): el fondo se oscurece y la ventana aparece con un pop corto. */
+.anim-fondo {
+  animation: fondo 0.25s var(--ease-out-expo) both;
+}
+.anim-ventana {
+  animation: ventana 0.45s var(--ease-spring) both;
+}
+@keyframes fondo {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ventana {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.95);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anim-ventana {
+    animation-name: fondo;
+  }
+}
+
+/* Sello del comprobante: cae y se asienta como un timbre. */
+.sello {
+  animation: sello 0.7s var(--ease-spring) 0.5s both;
+}
+@keyframes sello {
+  from {
+    opacity: 0;
+    transform: rotate(-18deg) scale(1.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sello {
+    animation-name: fondo;
+  }
+}

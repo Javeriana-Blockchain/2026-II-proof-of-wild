@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794271496331,
+      "tag": "0000_modelo_mvp",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794287273283,
+      "tag": "0001_evidencias_en_bd",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794459913089,
+      "tag": "0002_verificacion_identidad",
+      "breakpoints": true
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pow
+      POSTGRES_PASSWORD: pow
+      POSTGRES_DB: proofofwild
+    ports:
+      # Puerto local configurable (POW_DB_PORT en .env) por si otro proyecto ya usa el 55432.
+      - "${POW_DB_PORT:-55432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pow -d proofofwild"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
