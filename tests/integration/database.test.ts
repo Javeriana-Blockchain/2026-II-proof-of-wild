@@ -97,9 +97,8 @@ describe.skipIf(!url)("integración con PostgreSQL", () => {
         .from(schema.ngos)
         .where(eq(schema.ngos.slug, "refugio-alas-libres"));
       const portal = (await getPortalData(db, alas!.id))!;
-      expect(portal.pending.filter((p) => p.title === "Subir la foto del avance").map((p) => p.detail)).toEqual([
-        "Etapa 1 · Medicamento para el ala · POW_001",
-      ]);
+      const fotos = portal.pending.flatMap((p) => (p.kind === "subir_foto" ? [[p.stage, p.stageName, p.caseCode]] : []));
+      expect(fotos).toEqual([[1, "Medicamento para el ala", "POW_001"]]);
     });
 
     it("el detalle cuadra con los datos de prueba: tortuga con 35 recibidos, 25 gastados y 10 disponibles", async () => {

@@ -2,24 +2,30 @@
 
 import { z } from "zod";
 import { getSession } from "@/app/_lib/session";
+import { traducirError } from "@/i18n/errores";
+import { getT } from "@/i18n/servidor";
+import type { Traductor } from "@/i18n/traductor";
 import { getDb } from "@/platform/db/client";
 import { AlreadyEnrolledError, enroll, VolunteeringFullError } from "@/platform/db/repositories/volunteering";
 
-const schema = z.object({
-  volunteeringId: z.uuid(),
-  fullName: z.string().trim().min(3, "Escribe tu nombre completo.").max(120),
-  email: z.email("El correo no es válido.").max(200),
-  phone: z.string().trim().regex(/^[+0-9 ()-]{7,20}$/, "Escribe un teléfono válido, por ejemplo +57 300 000 0000."),
-  availability: z.enum(["toda_la_jornada", "manana", "tarde"]),
-  consent: z.boolean().refine((v) => v, "Autoriza el uso de tus datos para gestionar la inscripción."),
-});
+/** Esquema con los mensajes en el idioma de la petición. */
+const esquema = (t: Traductor["t"]) =>
+  z.object({
+    volunteeringId: z.uuid(),
+    fullName: z.string().trim().min(3, t("ong.inscripcion.error.nombre")).max(120),
+    email: z.email(t("ong.inscripcion.error.correo")).max(200),
+    phone: z.string().trim().regex(/^[+0-9 ()-]{7,20}$/, t("ong.inscripcion.error.telefono")),
+    availability: z.enum(["toda_la_jornada", "manana", "tarde"]),
+    consent: z.boolean().refine((v) => v, t("ong.inscripcion.error.consentimiento")),
+  });
 
-export type EnrollmentInput = z.input<typeof schema>;
+export type EnrollmentInput = z.input<ReturnType<typeof esquema>>;
 
 /** Inscripción a un voluntariado (ventana D). Con sesión de persona, queda ligada a su cuenta y aparece en su perfil. */
 export async function submitEnrollment(input: EnrollmentInput): Promise<{ ok: true } | { ok: false; message: string }> {
-  const parsed = schema.safeParse(input);
-  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Revisa los datos." };
+  const { t } = await getT();
+  const parsed = esquema(t).safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? t("ong.inscripcion.error.revisa") };
   const session = await getSession();
   const { consent: _, ...data } = parsed.data;
   try {
@@ -27,9 +33,9 @@ export async function submitEnrollment(input: EnrollmentInput): Promise<{ ok: tr
     return { ok: true };
   } catch (error) {
     if (error instanceof VolunteeringFullError || error instanceof AlreadyEnrolledError || error instanceof RangeError) {
-      return { ok: false, message: error.message };
+      return { ok: false, message: traducirError(error.message, t) };
     }
     console.error(error);
-    return { ok: false, message: "No pudimos enviar la inscripción. Inténtalo de nuevo." };
+    return { ok: false, message: t("ong.inscripcion.error.generico") };
   }
 }
