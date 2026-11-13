@@ -1,9 +1,11 @@
+"use client";
+
 import Image from "next/image";
-import { formatAmount } from "@/app/_lib/format";
-import { STAGE_STATUS_LABELS } from "@/app/_lib/labels";
+import { stageStatusLabel } from "@/app/_lib/labels";
 import { IconoEtapa, stageKind } from "@/components/iconos";
 import { Reveal } from "@/components/movimiento/Reveal";
 import { Chip, ExplorerLink, ProgressBar, ValidationChip } from "@/components/ui";
+import { useT } from "@/i18n/cliente";
 import { fromStroops, toStroops } from "@/lib/amount";
 import type { PublicStage } from "@/modules/catalog";
 
@@ -39,6 +41,7 @@ export function StageTimeline({
 }
 
 function StageRow({ stage, mine }: { stage: PublicStage; mine?: string }) {
+  const { t, rich, formatAmount } = useT();
   const missing = toStroops(stage.cost) - toStroops(stage.covered);
   const percent = Number((toStroops(stage.covered) * 100n) / (toStroops(stage.cost) || 1n));
   const expense = stage.expenses.at(-1);
@@ -54,7 +57,7 @@ function StageRow({ stage, mine }: { stage: PublicStage; mine?: string }) {
         {stage.photoUrl ? (
           <Image
             src={stage.photoUrl}
-            alt={`Foto de la etapa ${stage.position}: ${stage.name}`}
+            alt={t("casos.etapas.fotoAlt", { n: stage.position, nombre: stage.name })}
             fill
             sizes="(min-width: 640px) 120px, 72px"
             className="object-cover transition-transform duration-700 ease-(--ease-out-expo) group-hover/etapa:scale-[1.08]"
@@ -71,43 +74,49 @@ function StageRow({ stage, mine }: { stage: PublicStage; mine?: string }) {
           <h3 className="font-display text-2xl leading-tight font-semibold">
             <span className="cifras text-bosque">{stage.position}</span> · {stage.name}
           </h3>
-          <Chip tone={stage.status === "completada" ? "logro" : "etapa"}>{STAGE_STATUS_LABELS[stage.status]}</Chip>
+          <Chip tone={stage.status === "completada" ? "logro" : "etapa"}>{stageStatusLabel(t, stage.status)}</Chip>
         </div>
         {stage.covers ? <p className="text-secundario">{stage.covers}</p> : null}
 
         <div className="max-w-md space-y-1.5">
           <p className="cifras text-sm">
-            <strong className="text-base">{formatAmount(stage.covered, "")}</strong>de {formatAmount(stage.cost)}
-            {missing > 0n ? <span className="text-secundario"> · faltan {formatAmount(fromStroops(missing))}</span> : null}
+            {rich(
+              "casos.cubiertoDe",
+              { b: (s) => <strong className="text-base">{s}</strong> },
+              { cubierto: formatAmount(stage.covered, "").trim(), costo: formatAmount(stage.cost) },
+            )}
+            {missing > 0n ? (
+              <span className="text-secundario"> {t("casos.etapas.faltan", { monto: formatAmount(fromStroops(missing)) })}</span>
+            ) : null}
           </p>
-          <ProgressBar percent={percent} label={`Cubierto de la etapa ${stage.position}`} />
+          <ProgressBar percent={percent} label={t("casos.etapas.progresoAria", { n: stage.position })} />
         </div>
 
         {expense ? (
           <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
             <ValidationChip level={expense.validationLevel} />
             <a href={expense.invoiceUrl} target="_blank" rel="noreferrer" className="enlace">
-              Factura
+              {t("casos.factura")}
             </a>
             <ExplorerLink href={expense.txUrl} />
           </p>
         ) : (
           <p className="text-sm text-secundario">
-            {missing > 0n ? "Todavía no tiene gastos." : "Etapa cubierta. Todavía no tiene gastos."}
+            {missing > 0n ? t("casos.etapas.sinGastos") : t("casos.etapas.cubiertaSinGastos")}
           </p>
         )}
 
         {milestone ? (
           <p className="border-t border-arena/60 pt-3 text-sm">
-            <span className="font-semibold">Hito:</span> {milestone.description}{" "}
-            <ExplorerLink href={milestone.txUrl}>Ver en Stellar Expert</ExplorerLink>
+            <span className="font-semibold">{t("casos.etapas.hito")}</span> {milestone.description}{" "}
+            <ExplorerLink href={milestone.txUrl}>{t("casos.verEnStellarExpert")}</ExplorerLink>
           </p>
         ) : null}
       </div>
 
       {mine !== undefined ? (
         <div className="flex items-center justify-between gap-4 self-center rounded-[18px] bg-salvia px-5 py-4 sm:flex-col sm:items-end sm:justify-center">
-          <span className="font-semibold">Tu aporte</span>
+          <span className="font-semibold">{t("casos.tuAporte")}</span>
           <span className="cifras font-display text-3xl font-bold">{formatAmount(mine)}</span>
         </div>
       ) : null}
@@ -117,6 +126,7 @@ function StageRow({ stage, mine }: { stage: PublicStage; mine?: string }) {
 
 /** Etapa pendiente: una sola línea del sendero, con su costo y la espera. */
 function PendingRow({ stage }: { stage: PublicStage }) {
+  const { t, rich, formatAmount } = useT();
   const kind = stageKind(stage.name);
   return (
     <div className="flex items-center gap-4 rounded-[20px] px-3 py-2 transition-colors duration-200 hover:bg-white/60 sm:gap-6 sm:px-4">
@@ -130,12 +140,16 @@ function PendingRow({ stage }: { stage: PublicStage }) {
           <span className="cifras">{stage.position}</span> · {stage.name}
         </h3>
         <span className="cifras text-sm text-secundario">
-          <strong className="text-texto">{formatAmount(stage.covered, "")}</strong>de {formatAmount(stage.cost)}
+          {rich(
+            "casos.cubiertoDe",
+            { b: (s) => <strong className="text-texto">{s}</strong> },
+            { cubierto: formatAmount(stage.covered, "").trim(), costo: formatAmount(stage.cost) },
+          )}
         </span>
         <span className="text-sm text-secundario">
           {stage.waitingForPrevious
-            ? `Empieza a cubrirse cuando la etapa ${stage.position - 1} esté completa.`
-            : STAGE_STATUS_LABELS[stage.status]}
+            ? t("casos.etapas.espera", { n: stage.position - 1 })
+            : stageStatusLabel(t, stage.status)}
         </span>
       </div>
     </div>

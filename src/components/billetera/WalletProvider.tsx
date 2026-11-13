@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { Traductor } from "@/i18n/traductor";
 
 /**
  * Billetera de Stellar del navegador. Usa Stellar Wallets Kit (Varial/Freighter, xBull, Albedo, Lobstr, Hana…)
@@ -58,13 +59,16 @@ interface WalletContextValue {
 
 const WalletContext = createContext<WalletContextValue | null>(null);
 
-/** Convierte los errores de las billeteras en mensajes claros para la persona. */
-export function walletErrorMessage(error: unknown): string {
+/**
+ * Convierte los errores de las billeteras en mensajes claros para la persona, en el idioma del traductor
+ * (`const { t } = useT()`).
+ */
+export function walletErrorMessage(error: unknown, t: Traductor["t"]): string {
   const text = error instanceof Error ? error.message : typeof error === "object" ? JSON.stringify(error) : String(error);
-  if (/reject|denied|declined|cancel|closed/i.test(text)) return "La firma fue rechazada. No se envió nada.";
-  if (/network/i.test(text)) return "Cambia tu billetera a la red de pruebas (Testnet) e inténtalo de nuevo.";
-  if (/not installed|not available|no wallet/i.test(text)) return "No encontramos esa billetera en este navegador.";
-  return "No pudimos usar la billetera. Inténtalo de nuevo.";
+  if (/reject|denied|declined|cancel|closed/i.test(text)) return t("casos.billetera.error.rechazada");
+  if (/network/i.test(text)) return t("casos.billetera.error.red");
+  if (/not installed|not available|no wallet/i.test(text)) return t("casos.billetera.error.noEncontrada");
+  return t("casos.billetera.error.generico");
 }
 
 export function WalletProvider({ children }: { children: ReactNode }) {

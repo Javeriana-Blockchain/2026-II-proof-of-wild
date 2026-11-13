@@ -4,10 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { formatAmount } from "@/app/_lib/format";
 import { useWallet, walletErrorMessage } from "@/components/billetera/WalletProvider";
 import { IconoCheck, IconoEscudo, IconoMenu } from "@/components/iconos";
 import { buttonClass, Spinner } from "@/components/ui";
+import { useT } from "@/i18n/cliente";
+import { traducirError } from "@/i18n/errores";
+import type { Clave } from "@/i18n/traductor";
 import { fromStroops, toStroops } from "@/lib/amount";
 import { shortAccount } from "@/lib/stellar-account";
 import { allocateContribution, type StageAllocation } from "@/modules/cases";
@@ -23,12 +25,12 @@ export interface ApadrinarCase {
 }
 
 type Step = "idle" | "preparing" | "signing" | "sending" | "confirming";
-const STEP_LABELS: Record<Exclude<Step, "idle">, string> = {
-  preparing: "Preparando tu aporte…",
-  signing: "Revisa y firma en tu billetera…",
-  sending: "Enviando a la red Stellar…",
-  confirming: "La red está confirmando tu aporte…",
-};
+const STEP_LABELS = {
+  preparing: "casos.apadrinar.paso.preparando",
+  signing: "casos.apadrinar.paso.firmando",
+  sending: "casos.apadrinar.paso.enviando",
+  confirming: "casos.apadrinar.paso.confirmando",
+} as const satisfies Record<Exclude<Step, "idle">, Clave>;
 
 interface Receipt {
   txHash: string;
@@ -47,7 +49,10 @@ async function postJson<T>(url: string, body: unknown): Promise<{ ok: boolean; s
 
 type ApiError = { error?: { message: string } };
 
-/** Ventana A: apadrinar (tu aporte) y comprobante, sobre el detalle del caso. */
+/**
+ * Ventana A: apadrinar (tu aporte) y comprobante, sobre el detalle del caso. Las rutas que recibe (`closeHref`,
+ * `profileHref`, `returnHref`) van sin prefijo de idioma; aquí se localizan al navegar.
+ */
 export function ApadrinarDialog({
   item,
   explorerBaseUrl,
@@ -71,6 +76,7 @@ export function ApadrinarDialog({
   /** Monto elegido antes de ir a verificarse. */
   initialAmount?: string;
 }) {
+  const { t, rich, ruta, locale, formatAmount } = useT();
   const router = useRouter();
   const wallet = useWallet();
   const [amount, setAmount] = useState(initialAmount ?? SUGGESTED.find((s) => Number(s) <= Number(item.remaining)) ?? "");
@@ -80,7 +86,7 @@ export function ApadrinarDialog({
   const [copied, setCopied] = useState(false);
 
   const close = () => {
-    router.push(closeHref, { scroll: false });
+    router.push(ruta(closeHref), { scroll: false });
     router.refresh();
   };
 
@@ -95,21 +101,24 @@ export function ApadrinarDialog({
     try {
       return { allocation: allocateContribution(item.stages, amount.replace(",", ".")), message: null };
     } catch (e) {
-      return { allocation: null, message: e instanceof Error ? e.message : null };
+      // Los mensajes del dominio vienen en español: se traducen al idioma de la página.
+      return { allocation: null, message: e instanceof Error ? traducirError(e.message, t) : null };
     }
-  }, [amount, item.stages]);
+  }, [amount, item.stages, t]);
 
   const needsVerification = !identityVerified && !!preview.allocation && requiredLevel(amount) === 2;
-  const verifyHref = returnHref
-    ? `/cuenta/verificar?volver=${encodeURIComponent(`${returnHref}&monto=${amount}`)}`
-    : "/cuenta/verificar";
+  // `volver` se guarda sin prefijo de idioma; el enlace a la verificación sí va en el idioma de la página.
+  const verifyHref = ruta(
+    returnHref ? `/cuenta/verificar?volver=${encodeURIComponent(`${returnHref}&monto=${amount}`)}` : "/cuenta/verificar",
+  );
 
-  const stageName = (position: number) => item.stages.find((s) => s.position === position)?.name ?? `Etapa ${position}`;
+  const stageName = (position: number) =>
+    item.stages.find((s) => s.position === position)?.name ?? t("casos.etapaN", { n: position });
   const busy = step !== "idle";
 
   async function confirm() {
     setError(null);
-    if (!preview.allocation) return setError(preview.message ?? "Escribe un monto mayor que cero.");
+    if (!preview.allocation) return setError(preview.message ?? t("casos.apadrinar.error.montoCero"));
     try {
       const donor = wallet.address ?? (await wallet.connect());
       setStep("preparing");
@@ -117,21 +126,21 @@ export function ApadrinarDialog({
         "/api/aportes/preparar",
         { caseCode: item.code, donorAccount: donor, amount },
       );
-      if (!prepared.ok) throw new Error(prepared.data.error?.message ?? "No se pudo preparar el aporte.");
+      if (!prepared.ok) throw new Error(prepared.data.error?.message ?? t("casos.apadrinar.error.preparar"));
 
       setStep("signing");
       let signedXdr: string;
       try {
         signedXdr = await wallet.sign(prepared.data.xdr, prepared.data.networkPassphrase);
       } catch (e) {
-        throw new Error(walletErrorMessage(e));
+        throw new Error(walletErrorMessage(e, t));
       }
 
       setStep("sending");
       const sent = await postJson<{ txHash: string; status: string; message?: string } & ApiError>("/api/aportes/enviar", {
         signedXdr,
       });
-      if (!sent.ok && sent.status !== 202) throw new Error(sent.data.error?.message ?? "No se pudo enviar el aporte.");
+      if (!sent.ok && sent.status !== 202) throw new Error(sent.data.error?.message ?? t("casos.apadrinar.error.enviar"));
 
       let status = sent.data.status;
       setStep("confirming");
@@ -139,23 +148,23 @@ export function ApadrinarDialog({
         await new Promise((r) => setTimeout(r, 2500));
         const check = await fetch(`/api/aportes/${sent.data.txHash}`).then((r) => r.json() as Promise<{ status: string; message?: string }>);
         status = check.status;
-        if (status === "fallida") throw new Error(check.message ?? "La red no aceptó el aporte.");
+        if (status === "fallida") throw new Error(check.message ?? t("casos.apadrinar.error.rechazado"));
       }
-      if (status === "fallida") throw new Error(sent.data.message ?? "La red no aceptó el aporte.");
+      if (status === "fallida") throw new Error(sent.data.message ?? t("casos.apadrinar.error.rechazado"));
       if (status !== "confirmada") {
-        throw new Error("Tu aporte quedó enviado y la red lo confirmará en unos minutos. Puedes verlo en tu perfil.");
+        throw new Error(t("casos.apadrinar.error.pendiente"));
       }
       setReceipt({ txHash: sent.data.txHash, amount, allocation: prepared.data.allocation, at: new Date() });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ocurrió un error inesperado.");
+      setError(e instanceof Error ? e.message : t("casos.apadrinar.error.inesperado"));
     } finally {
       setStep("idle");
     }
   }
 
   async function share() {
-    const url = `${window.location.origin}/comprobante/${receipt?.txHash}`;
-    const text = `Apadriné a ${item.name} (${item.code}) en Proof of Wild. Compruébalo en Stellar.`;
+    const url = `${window.location.origin}${ruta(`/comprobante/${receipt?.txHash}`)}`;
+    const text = t("casos.apadrinar.compartirTexto", { nombre: item.name, codigo: item.code });
     if (navigator.share) {
       await navigator.share({ title: "Proof of Wild", text, url }).catch(() => {});
     } else {
@@ -189,11 +198,13 @@ export function ApadrinarDialog({
             </p>
           </div>
           <p className="flex justify-between border-t border-arena pt-3">
-            <span>{receipt ? "Ahora falta para el tratamiento" : "Falta para el tratamiento"}</span>
+            <span>{receipt ? t("casos.apadrinar.faltaAhora") : t("casos.apadrinar.falta")}</span>
             <strong>{formatAmount(remainingAfter)}</strong>
           </p>
           <div className="rounded-2xl bg-salvia p-5">
-            <p className="font-semibold">{receipt ? "Cómo se repartió tu aporte" : "Así se usaría tu aporte"}</p>
+            <p className="font-semibold">
+              {receipt ? t("casos.apadrinar.repartoHecho") : t("casos.apadrinar.repartoPrevio")}
+            </p>
             {allocation ? (
               <ul className="mt-2 space-y-1.5">
                 {allocation.map((a) => (
@@ -206,9 +217,9 @@ export function ApadrinarDialog({
                 ))}
               </ul>
             ) : (
-              <p className="mt-2 text-sm">{preview.message ?? "Elige un monto para ver en qué se usaría."}</p>
+              <p className="mt-2 text-sm">{preview.message ?? t("casos.apadrinar.eligeMonto")}</p>
             )}
-            <p className="mt-3 text-sm">Se reparte en orden: primero la etapa que falte por cubrir.</p>
+            <p className="mt-3 text-sm">{t("casos.apadrinar.orden")}</p>
           </div>
         </aside>
 
@@ -217,19 +228,19 @@ export function ApadrinarDialog({
             <ol className="flex items-center gap-3 text-sm font-semibold">
               <li className="flex items-center gap-2">
                 <span className={`flex h-7 w-7 items-center justify-center rounded-full ${receipt ? "bg-crema" : "bg-bosque text-white"}`}>1</span>
-                Tu aporte
+                {t("casos.tuAporte")}
               </li>
               <li aria-hidden className="h-px w-10 bg-arena" />
               <li className="flex items-center gap-2">
                 <span className={`flex h-7 w-7 items-center justify-center rounded-full ${receipt ? "bg-bosque text-white" : "bg-crema"}`}>2</span>
-                Comprobante
+                {t("casos.apadrinar.pasoComprobante")}
               </li>
             </ol>
             <button
               type="button"
               onClick={close}
               disabled={busy}
-              aria-label="Cerrar"
+              aria-label={t("casos.cerrar")}
               className="mov-hover flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-arena text-texto transition-[transform,border-color,color] duration-200 ease-(--ease-spring) hover:rotate-90 hover:border-bosque hover:text-bosque disabled:cursor-not-allowed disabled:opacity-40"
             >
               <IconoMenu abierto className="h-5 w-5" />
@@ -242,20 +253,20 @@ export function ApadrinarDialog({
                 <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-bosque text-white">
                   <IconoCheck className="h-7 w-7" />
                 </span>
-                ¡Gracias! Tu aporte quedó registrado
+                {t("casos.apadrinar.gracias")}
               </h2>
               <dl className="grid grid-cols-[auto_1fr] gap-x-8 gap-y-3 rounded-2xl bg-gris p-5">
-                <dt className="text-secundario">Monto</dt>
+                <dt className="text-secundario">{t("casos.col.monto")}</dt>
                 <dd className="font-semibold">{formatAmount(receipt.amount.replace(",", "."))}</dd>
-                <dt className="text-secundario">Caso</dt>
+                <dt className="text-secundario">{t("casos.col.caso")}</dt>
                 <dd>
                   {item.name} · {item.code}
                 </dd>
-                <dt className="text-secundario">Fecha</dt>
+                <dt className="text-secundario">{t("casos.col.fecha")}</dt>
                 <dd>
-                  {receipt.at.toLocaleString("es-CO", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                  {receipt.at.toLocaleString(locale, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}
                 </dd>
-                <dt className="text-secundario">Transacción</dt>
+                <dt className="text-secundario">{t("casos.col.transaccion")}</dt>
                 <dd className="flex flex-wrap gap-3">
                   <span className="font-mono">
                     {receipt.txHash.slice(0, 4)}…{receipt.txHash.slice(-4)}
@@ -266,19 +277,19 @@ export function ApadrinarDialog({
                     rel="noreferrer"
                     className="font-medium text-bosque underline"
                   >
-                    Ver en Stellar Expert
+                    {t("casos.verEnStellarExpert")}
                   </a>
                 </dd>
               </dl>
               <div className="flex flex-wrap items-center gap-3">
                 <button type="button" onClick={close} className={buttonClass("primario")}>
-                  Ver en qué se usa
+                  {t("casos.verEnQueSeUsa")}
                 </button>
-                <Link href={profileHref ?? `/huella/${wallet.address ?? ""}`} className={buttonClass("secundario")}>
-                  Ir a mi perfil
+                <Link href={ruta(profileHref ?? `/huella/${wallet.address ?? ""}`)} className={buttonClass("secundario")}>
+                  {t("casos.apadrinar.irPerfil")}
                 </Link>
                 <button type="button" onClick={share} className="font-semibold text-bosque underline">
-                  {copied ? "Enlace copiado" : "Compartir"}
+                  {copied ? t("casos.apadrinar.enlaceCopiado") : t("casos.apadrinar.compartir")}
                 </button>
               </div>
               <button
@@ -289,7 +300,7 @@ export function ApadrinarDialog({
                 }}
                 className="text-sm font-medium text-bosque underline"
               >
-                Hacer otro aporte
+                {t("casos.apadrinar.otroAporte")}
               </button>
             </div>
           ) : (
@@ -300,23 +311,24 @@ export function ApadrinarDialog({
                     <IconoCheck className="h-4 w-4" />
                   </span>
                   <span>
-                    <strong>¡Listo{welcome ? `, ${welcome}` : ""}!</strong> Tu cuenta está lista. Ahora elige tu aporte y
-                    conecta tu billetera.
+                    {welcome
+                      ? rich("casos.apadrinar.bienvenidaNombre", { b: (s) => <strong>{s}</strong> }, { nombre: welcome })
+                      : rich("casos.apadrinar.bienvenida", { b: (s) => <strong>{s}</strong> })}
                   </span>
                 </p>
               ) : null}
               <div className="space-y-2">
                 <h2 id="titulo-apadrinar" className="text-4xl">
-                  Apadrina este caso
+                  {t("casos.apadrinar.titulo")}
                 </h2>
                 {identityVerified ? (
                   <p className="flex items-center gap-2 text-sm font-semibold text-bosque">
-                    <IconoEscudo className="h-4 w-4" /> Identidad verificada · sin límite de monto
+                    <IconoEscudo className="h-4 w-4" /> {t("casos.apadrinar.identidadVerificada")}
                   </p>
                 ) : null}
               </div>
               <fieldset>
-                <legend className="mb-2 font-semibold">Elige el monto de tu aporte</legend>
+                <legend className="mb-2 font-semibold">{t("casos.apadrinar.leyendaMonto")}</legend>
                 <div className="grid grid-cols-3 gap-3">
                   {SUGGESTED.map((s) => {
                     const fits = Number(s) <= Number(item.remaining);
@@ -335,17 +347,17 @@ export function ApadrinarDialog({
                   })}
                 </div>
                 <label className="mt-3 flex items-center gap-3">
-                  <span className="shrink-0">Otro valor</span>
+                  <span className="shrink-0">{t("casos.apadrinar.otroValor")}</span>
                   <input
                     inputMode="decimal"
                     value={SUGGESTED.includes(amount) ? "" : amount}
                     onChange={(e) => setAmount(e.target.value.trim())}
                     disabled={busy}
-                    placeholder="Monto en USDC"
+                    placeholder={t("casos.apadrinar.placeholderMonto")}
                     className="w-full rounded-xl border border-arena px-4 py-3 outline-none focus:border-bosque"
                   />
                 </label>
-                <p className="mt-2 text-sm text-secundario">Aporte único. No puede superar lo que falta para el tratamiento.</p>
+                <p className="mt-2 text-sm text-secundario">{t("casos.apadrinar.aporteUnico")}</p>
               </fieldset>
 
               {needsVerification ? (
@@ -354,11 +366,11 @@ export function ApadrinarDialog({
                     <IconoEscudo className="h-5 w-5" />
                   </span>
                   <p className="min-w-0 flex-1">
-                    <strong className="block">Para aportes de más de {UNVERIFIED_LIMIT} USDC, verifica tu identidad</strong>
-                    <span className="text-sm text-secundario">Toma unos dos minutos y vuelves aquí con tu aporte.</span>
+                    <strong className="block">{t("casos.apadrinar.limiteTitulo", { limite: UNVERIFIED_LIMIT })}</strong>
+                    <span className="text-sm text-secundario">{t("casos.apadrinar.limiteTexto")}</span>
                   </p>
                   <Link href={verifyHref} className={buttonClass("primario", "py-2.5")}>
-                    Verificar mi identidad
+                    {t("casos.apadrinar.verificar")}
                   </Link>
                 </div>
               ) : null}
@@ -368,22 +380,26 @@ export function ApadrinarDialog({
                   <>
                     <span className="flex items-center gap-2">
                       <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-bosque" />
-                      Billetera conectada: <strong className="font-mono">{shortAccount(wallet.address)}</strong>
+                      {rich(
+                        "casos.apadrinar.billeteraConectada",
+                        { b: (s) => <strong className="font-mono">{s}</strong> },
+                        { cuenta: shortAccount(wallet.address) },
+                      )}
                     </span>
                     <button type="button" disabled={busy} onClick={() => wallet.connect().catch(() => {})} className="font-medium text-bosque underline">
-                      Cambiar
+                      {t("casos.apadrinar.cambiar")}
                     </button>
                   </>
                 ) : (
                   <>
-                    <span>Conecta tu billetera de Stellar (en testnet) para firmar.</span>
+                    <span>{t("casos.apadrinar.conectaTexto")}</span>
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => wallet.connect().catch((e) => setError(walletErrorMessage(e)))}
+                      onClick={() => wallet.connect().catch((e) => setError(walletErrorMessage(e, t)))}
                       className={buttonClass("secundario", "py-2")}
                     >
-                      Conectar billetera
+                      {t("casos.apadrinar.conectar")}
                     </button>
                   </>
                 )}
@@ -393,7 +409,7 @@ export function ApadrinarDialog({
                 <div role="alert" className="flex items-center justify-between gap-4 rounded-2xl border border-error px-5 py-4 text-error">
                   <span className="font-medium">{error}</span>
                   <button type="button" onClick={confirm} className="mov-hover cursor-pointer rounded-xl bg-error px-5 py-2 font-semibold text-white transition-transform duration-200 ease-(--ease-spring) hover:-translate-y-0.5 active:scale-95">
-                    Reintentar
+                    {t("comun.error.reintentar")}
                   </button>
                 </div>
               ) : null}
@@ -405,11 +421,13 @@ export function ApadrinarDialog({
                 className={buttonClass("primario", "w-full py-4 text-lg")}
               >
                 {busy ? <Spinner className="h-5 w-5" /> : null}
-                {busy ? STEP_LABELS[step as Exclude<Step, "idle">] : `Confirmar aporte de ${preview.allocation ? formatAmount(amount.replace(",", ".")) : "…"}`}
+                {busy
+                  ? t(STEP_LABELS[step as Exclude<Step, "idle">])
+                  : t("casos.apadrinar.confirmar", {
+                      monto: preview.allocation ? formatAmount(amount.replace(",", ".")) : "…",
+                    })}
               </button>
-              <p className="text-center text-sm text-secundario">
-                Tu billetera te pedirá firmar. Demo en testnet: no se usa dinero real.
-              </p>
+              <p className="text-center text-sm text-secundario">{t("casos.apadrinar.pie")}</p>
             </div>
           )}
         </section>
