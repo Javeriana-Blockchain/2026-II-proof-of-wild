@@ -238,9 +238,8 @@ tests/            Pruebas de dominio, adaptadores e integración
 
 | Integrante | Rol |
 |---|---|
-| André Landinez ([@andreMD287](https://github.com/andreMD287)) | Desarrollo: contrato Soroban, backend, frontend, integración con Stellar y despliegue |
-| _COMPLETAR_ | _COMPLETAR_ |
-| _COMPLETAR_ | _COMPLETAR_ |
+| Diana Duran | Producto y diseño |
+| André Landinez ([@andreMD287](https://github.com/andreMD287)) | Desarrollo fullstack y del contrato inteligente (Soroban) |
 
 ## Declaración de uso de IA
 
