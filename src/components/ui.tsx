@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { VALIDATION_LABELS } from "@/app/_lib/labels";
-import type { ValidationLevel } from "@/modules/catalog";
 import { ContourField } from "./mapa/ContourField";
 import { Reveal } from "@/components/movimiento/Reveal";
+
+export { Chip, type ChipTone } from "./chip";
+export { ExplorerLink, ProgressBar, TestnetBadge, ValidationChip } from "./ui-cliente";
 
 /**
  * Botones con forma de placa de sendero (esquinas de letrero, no píldora). Suben al pasar el mouse, se hunden al
@@ -29,94 +30,6 @@ export function buttonClass(variant: ButtonVariant = "primario", extra = ""): st
     BUTTONS[variant],
     extra,
   ].join(" ");
-}
-
-const CHIP_TONES = {
-  /** Etapa: arena con texto oscuro. */
-  etapa: "bg-arena text-texto",
-  /** Logro (liberado, completada, verificado): verde bosque con texto blanco. */
-  logro: "bg-bosque text-white",
-  /** Salvia: «revisado por un profesional», «tu aporte». */
-  salvia: "bg-salvia text-texto",
-  /** Blanco con borde arena: «presentado por la ONG», «pendiente». */
-  borde: "border border-arena bg-white text-texto",
-  /** Sobre fondos oscuros. */
-  oscuro: "bg-white/15 text-white",
-} as const;
-
-export type ChipTone = keyof typeof CHIP_TONES;
-
-/** Rótulo de leyenda del mapa: versalitas condensadas sobre una placa pequeña. */
-export function Chip({ tone = "etapa", children, className = "" }: { tone?: ChipTone; children: ReactNode; className?: string }) {
-  return (
-    <span
-      className={`rotulo inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 leading-none whitespace-nowrap ${CHIP_TONES[tone]} ${className}`}
-    >
-      {children}
-    </span>
-  );
-}
-
-/** Chip de validación: sube de intensidad a medida que sube la confianza. */
-export function ValidationChip({ level, short = false }: { level: ValidationLevel; short?: boolean }) {
-  const tone: ChipTone = level === "verificado_independiente" ? "logro" : level === "revisado" ? "salvia" : "borde";
-  const label = VALIDATION_LABELS[level];
-  return <Chip tone={tone}>{short ? label.short : label.long}</Chip>;
-}
-
-/** Barra de lo cubierto: una regla de mapa con el tramo recorrido en bosque. */
-export function ProgressBar({
-  percent,
-  label = "Porcentaje recaudado",
-  className = "",
-  tone = "claro",
-}: {
-  percent: number;
-  label?: string;
-  className?: string;
-  /** «oscuro» sobre fondos profundo o bosque. */
-  tone?: "claro" | "oscuro";
-}) {
-  const value = Math.max(0, Math.min(100, percent));
-  return (
-    <div
-      role="progressbar"
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={Math.round(value)}
-      aria-label={label}
-      className={`relative h-2.5 w-full overflow-hidden rounded-full ${tone === "oscuro" ? "bg-white/20" : "bg-arena/45"} ${className}`}
-    >
-      <div
-        className={`h-full rounded-full transition-[width] duration-700 ease-(--ease-out-expo) ${tone === "oscuro" ? "bg-arena" : "bg-bosque"}`}
-        style={{ width: `${value}%` }}
-      />
-    </div>
-  );
-}
-
-/** Enlace a la transacción en Stellar Expert. Abre en otra pestaña. */
-export function ExplorerLink({ href, children = "Stellar Expert" }: { href: string; children?: ReactNode }) {
-  return (
-    <a href={href} target="_blank" rel="noreferrer" className="enlace inline-flex items-center gap-1">
-      {children}
-      <svg viewBox="0 0 24 24" aria-hidden className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2">
-        <path d="M7 17 17 7M9 7h8v8" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <span className="sr-only">(abre en otra pestaña)</span>
-    </a>
-  );
-}
-
-export function TestnetBadge({ dark = false }: { dark?: boolean }) {
-  return (
-    <span
-      className={`rotulo inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 leading-none ${dark ? "border-white/40 text-white" : "border-arena bg-white/60 text-secundario"}`}
-    >
-      <span aria-hidden className={`h-1.5 w-1.5 animate-brillo rounded-full ${dark ? "bg-salvia" : "bg-bosque"}`} />
-      Demo en testnet
-    </span>
-  );
 }
 
 /** Indicador de carga para botones y paneles. */

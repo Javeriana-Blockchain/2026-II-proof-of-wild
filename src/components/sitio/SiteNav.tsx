@@ -7,8 +7,11 @@ import { WalletChip } from "@/components/billetera/WalletChip";
 import { IconoMenu } from "@/components/iconos";
 import { logout } from "@/app/ingresar/actions";
 import { buttonClass, Spinner } from "@/components/ui";
+import { useT } from "@/i18n/cliente";
+import { quitarIdioma } from "@/i18n/config";
 import { Logo } from "./Logo";
 import { SECCIONES } from "./secciones";
+import { SelectorIdioma } from "./SelectorIdioma";
 
 type Account = { label: string; href: string; profileHref: string | null } | null;
 
@@ -63,10 +66,12 @@ const textLinkLine =
 /**
  * Menú superior, igual en todas las páginas públicas. En escritorio son tres columnas: la marca (con la marca de la
  * demo), las secciones en una sola barra con una placa que se desliza hasta la sección visible, y la cuenta.
- * En el celular, la marca y un botón que despliega todo.
+ * En el celular, la marca y un botón que despliega todo. El selector de idioma va junto a la cuenta.
  */
 export function SiteNav({ account }: { account: Account }) {
-  const pathname = usePathname();
+  const { t, ruta } = useT();
+  // Sin el prefijo de idioma: «/en/casos/POW_001» se compara como «/casos/POW_001».
+  const pathname = quitarIdioma(usePathname());
   const onHome = pathname === "/";
   const active = useActiveSection(onHome);
   const [open, setOpen] = useState(false);
@@ -121,7 +126,7 @@ export function SiteNav({ account }: { account: Account }) {
       await logout();
     } finally {
       setOpen(false);
-      router.push("/");
+      router.push(ruta("/"));
       router.refresh();
       setLeaving(false);
     }
@@ -129,7 +134,7 @@ export function SiteNav({ account }: { account: Account }) {
   const salirBoton = account ? (
     <button type="button" onClick={salir} disabled={leaving} className={`${textLink} cursor-pointer disabled:opacity-60`}>
       {leaving ? <Spinner className="mr-1.5 h-4 w-4" /> : null}
-      Cerrar sesión
+      {t("comun.nav.cerrarSesion")}
       <span aria-hidden className={textLinkLine} />
     </button>
   ) : null;
@@ -140,8 +145,8 @@ export function SiteNav({ account }: { account: Account }) {
       {account.label}
     </Link>
   ) : (
-    <Link href="/ingresar" className={buttonClass("primario", "shrink-0 py-2.5 whitespace-nowrap")}>
-      Crear cuenta
+    <Link href={ruta("/ingresar")} className={buttonClass("primario", "shrink-0 py-2.5 whitespace-nowrap")}>
+      {t("comun.nav.crearCuenta")}
     </Link>
   );
 
@@ -150,7 +155,7 @@ export function SiteNav({ account }: { account: Account }) {
       className={`sticky top-0 z-40 border-b bg-crema transition-[border-color] duration-300 ${scrolled ? "border-arena" : "border-transparent"}`}
     >
       <nav
-        aria-label="Principal"
+        aria-label={t("comun.nav.aria")}
         className="mx-auto flex max-w-7xl items-center justify-between gap-6 px-4 py-3 sm:px-8 lg:grid lg:grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)]"
       >
         <Logo testnet />
@@ -162,37 +167,44 @@ export function SiteNav({ account }: { account: Account }) {
               style={{ left: plate?.left ?? 0, width: plate?.width ?? 0 }}
             />
           </li>
-          {SECCIONES.map(({ id, label }) => {
+          {SECCIONES.map(({ id, clave }) => {
             const on = currentId === id;
             return (
               <li key={id}>
                 <Link
-                  href={`/#${id}`}
+                  href={ruta(`/#${id}`)}
                   data-seccion={id}
                   aria-current={on ? "location" : undefined}
                   className={`relative block rounded-xl px-3.5 py-2 font-semibold whitespace-nowrap transition-colors duration-300 xl:px-5 ${on ? "text-white" : "text-texto hover:bg-crema hover:text-bosque"}`}
                 >
-                  {label}
+                  {t(clave)}
                 </Link>
               </li>
             );
           })}
         </ul>
 
-        <div className="hidden shrink-0 items-center justify-end gap-5 lg:flex">
+        <div className="hidden shrink-0 items-center justify-end gap-3 lg:flex xl:gap-5">
+          {/* Entre 1024 y 1279 px no caben las tres placas: el idioma va en un botón que despliega los tres. */}
+          <span className="contents xl:hidden">
+            <SelectorIdioma variante="menu" />
+          </span>
+          <span className="hidden xl:contents">
+            <SelectorIdioma />
+          </span>
           {/* En pantallas de portátil la billetera va en el menú del perfil; se muestra aquí desde 1280 px. */}
           <span className="hidden xl:contents">
             <WalletChip profileHref={account?.profileHref ?? null} />
           </span>
-          <Link href="/ong/registro" className={`${textLink} hidden xl:inline-flex`}>
-            Soy ONG
+          <Link href={ruta("/ong/registro")} className={`${textLink} max-xl:hidden`}>
+            {t("comun.nav.soyOng")}
             <span aria-hidden className={textLinkLine} />
           </Link>
           {account ? null : (
             <>
               <span aria-hidden className="hidden h-5 w-px bg-arena xl:block" />
-              <Link href="/ingresar?modo=ingresar" className={textLink}>
-                Ingresar
+              <Link href={ruta("/ingresar?modo=ingresar")} className={textLink}>
+                {t("comun.nav.ingresar")}
                 <span aria-hidden className={textLinkLine} />
               </Link>
             </>
@@ -209,24 +221,24 @@ export function SiteNav({ account }: { account: Account }) {
           className="mov-hover flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border-2 border-bosque text-bosque transition-transform duration-200 ease-(--ease-spring) active:scale-95 lg:hidden"
         >
           <IconoMenu abierto={open} />
-          <span className="sr-only">{open ? "Cerrar el menú" : "Abrir el menú"}</span>
+          <span className="sr-only">{open ? t("comun.nav.cerrarMenu") : t("comun.nav.abrirMenu")}</span>
         </button>
       </nav>
 
       {open ? (
         <div id="menu-movil" className="anim-ventana border-y border-arena bg-crema px-4 pt-2 pb-6 lg:hidden">
           <ul className="divide-y divide-arena/70">
-            {SECCIONES.map(({ id, label }) => {
+            {SECCIONES.map(({ id, clave }) => {
               const on = currentId === id;
               return (
                 <li key={id}>
                   <Link
-                    href={`/#${id}`}
+                    href={ruta(`/#${id}`)}
                     onClick={() => setOpen(false)}
                     aria-current={on ? "location" : undefined}
                     className={`flex items-center justify-between py-3.5 text-lg font-semibold transition-colors ${on ? "text-bosque" : "text-texto hover:text-bosque"}`}
                   >
-                    {label}
+                    {t(clave)}
                     <span
                       aria-hidden
                       className={`h-2.5 w-2.5 rounded-full border-2 border-bosque ${on ? "bg-bosque" : "bg-transparent"}`}
@@ -237,14 +249,15 @@ export function SiteNav({ account }: { account: Account }) {
             })}
           </ul>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3 border-t-2 border-texto/80 pt-4">
+            <SelectorIdioma />
             <WalletChip profileHref={account?.profileHref ?? null} />
-            <Link href="/ong/registro" className={textLink}>
-              Soy ONG
+            <Link href={ruta("/ong/registro")} className={textLink}>
+              {t("comun.nav.soyOng")}
               <span aria-hidden className={textLinkLine} />
             </Link>
             {account ? null : (
-              <Link href="/ingresar?modo=ingresar" className={textLink}>
-                Ingresar
+              <Link href={ruta("/ingresar?modo=ingresar")} className={textLink}>
+                {t("comun.nav.ingresar")}
                 <span aria-hidden className={textLinkLine} />
               </Link>
             )}

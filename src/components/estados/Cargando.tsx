@@ -1,20 +1,12 @@
 import { ContourField } from "@/components/mapa/ContourField";
 import { Skeleton } from "@/components/ui";
-
-/** Aviso para lectores de pantalla mientras llega la página. */
-function Aviso({ texto }: { texto: string }) {
-  return (
-    <p role="status" aria-live="polite" className="sr-only">
-      {texto}
-    </p>
-  );
-}
+import { AvisoCarga } from "./AvisoCarga";
 
 /** Carga general del sitio: una banda del mapa y bloques que respiran en el lugar del contenido. */
 export function CargandoPagina() {
   return (
     <main aria-busy="true">
-      <Aviso texto="Cargando la página…" />
+      <AvisoCarga clave="comun.cargando.pagina" />
       <section className="relative isolate overflow-hidden bg-profundo">
         <ContourField variant="noche" seed={3} className="absolute inset-0 -z-10 h-full w-full animate-brillo" />
         <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-8 lg:grid-cols-[1.2fr_0.8fr]">
@@ -43,7 +35,7 @@ export function CargandoPagina() {
 export function CargandoCaso() {
   return (
     <main aria-busy="true">
-      <Aviso texto="Cargando el caso…" />
+      <AvisoCarga clave="comun.cargando.caso" />
       <section className="mx-auto max-w-7xl px-4 pt-6 pb-10 sm:px-8">
         <Skeleton className="mb-6 h-5 w-36" />
         <div className="grid gap-10 lg:grid-cols-[1.05fr_1fr]">

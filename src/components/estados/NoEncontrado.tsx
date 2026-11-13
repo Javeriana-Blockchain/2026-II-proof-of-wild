@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ContourField } from "@/components/mapa/ContourField";
 import { buttonClass } from "@/components/ui";
+import { getT } from "@/i18n/servidor";
 
 /** Contenido de la página no encontrada: un pedazo del mapa sin ruta, y el camino de vuelta. */
-export function NoEncontrado() {
+export async function NoEncontrado() {
+  const { t, ruta } = await getT();
   return (
     <main className="relative isolate overflow-hidden bg-profundo text-white">
       <ContourField variant="noche" seed={9} className="absolute inset-0 -z-10 h-full w-full" />
@@ -12,16 +14,16 @@ export function NoEncontrado() {
           <circle cx="32" cy="32" r="24" stroke="currentColor" strokeWidth="2.5" strokeDasharray="5 6" />
           <path d="M24 24l16 16M40 24 24 40" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
         </svg>
-        <h1 className="mt-6 text-5xl font-bold sm:text-6xl">Esta ruta no está en el mapa</h1>
+        <h1 className="mt-6 text-5xl font-bold sm:text-6xl">{t("comun.noEncontrado.titulo")}</h1>
         <p className="mt-4 max-w-xl text-xl text-white/85">
-          La página que buscas no existe o el enlace está incompleto. Revisa el código del caso o vuelve al inicio.
+          {t("comun.noEncontrado.texto")}
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/#casos" className={buttonClass("arena")}>
-            Ver casos
+          <Link href={ruta("/#casos")} className={buttonClass("arena")}>
+            {t("comun.noEncontrado.verCasos")}
           </Link>
-          <Link href="/" className={buttonClass("contorno")}>
-            Ir al inicio
+          <Link href={ruta("/")} className={buttonClass("contorno")}>
+            {t("comun.irAlInicio")}
           </Link>
         </div>
       </div>
