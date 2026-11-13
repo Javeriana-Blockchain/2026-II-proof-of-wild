@@ -4,6 +4,7 @@ import Link from "next/link";
 import { requireSession } from "@/app/_lib/session";
 import { BadgeCard, DonorHeader, DonorSections, DonorTotals } from "@/components/huella/DonorSections";
 import { buttonClass } from "@/components/ui";
+import { getT } from "@/i18n/servidor";
 import { getExplorerEnv } from "@/platform/config/env";
 import { evidenceUrl, getCatalogService, getIdentityService } from "@/platform/container";
 import { getDb } from "@/platform/db/client";
@@ -11,12 +12,16 @@ import { enrollmentsOf, getDonorView, type DonorView } from "@/platform/db/repos
 import { personProfiles } from "@/platform/db/schema";
 import { DisconnectButton } from "./DisconnectButton";
 
-export const metadata: Metadata = { title: "Tu perfil" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+  return { title: t("cuenta.miPerfil.meta") };
+}
 export const dynamic = "force-dynamic";
 
 /** Pantalla 5: perfil del donante, con su insignia, lo que apoya, en qué se usó su aporte y sus voluntariados. */
 export default async function PerfilPage() {
   const session = await requireSession("/perfil", "persona");
+  const { t, ruta } = await getT();
   const db = getDb();
   const [[profile], cases, identity] = await Promise.all([
     db
@@ -51,19 +56,19 @@ export default async function PerfilPage() {
         seal={
           <BadgeCard
             view={view}
-            sharePath={account ? `/huella/${account}` : "/#casos"}
-            publicLink={account ? `/huella/${account}` : undefined}
+            sharePath={ruta(account ? `/huella/${account}` : "/#casos")}
+            publicLink={account ? ruta(`/huella/${account}`) : undefined}
           />
         }
         actions={
           <>
-            <Link href="/cuenta/verificar" className={buttonClass(identity ? "contorno" : "arena")}>
-              {identity ? "Ver mi verificación" : "Verificar mi identidad"}
+            <Link href={ruta("/cuenta/verificar")} className={buttonClass(identity ? "contorno" : "arena")}>
+              {identity ? t("cuenta.miPerfil.verVerificacion") : t("cuenta.miPerfil.verificar")}
             </Link>
             {account ? <DisconnectButton /> : null}
             {!profile?.alias ? (
-              <Link href="/cuenta/perfil" className={buttonClass("arena")}>
-                Completar mi perfil
+              <Link href={ruta("/cuenta/perfil")} className={buttonClass("arena")}>
+                {t("cuenta.miPerfil.completar")}
               </Link>
             ) : null}
           </>
@@ -71,12 +76,12 @@ export default async function PerfilPage() {
       >
         {account ? null : (
           <p>
-            Tu billetera queda vinculada a tu perfil con tu primer aporte: al firmarlo demuestras que es tuya.{" "}
+            {t("cuenta.miPerfil.billetera")}{" "}
             <Link
-              href="/#casos"
+              href={ruta("/#casos")}
               className="font-semibold text-arena underline decoration-arena/40 underline-offset-4 transition-[text-decoration-color] hover:decoration-arena"
             >
-              Elegir un caso
+              {t("cuenta.miPerfil.elegirCaso")}
             </Link>
           </p>
         )}

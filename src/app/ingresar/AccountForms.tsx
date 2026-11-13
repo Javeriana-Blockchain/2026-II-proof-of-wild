@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { buttonClass } from "@/components/ui";
+import { useT } from "@/i18n/cliente";
 import { signIn, signUp } from "./srp-client";
 
 type Mode = "crear" | "ingresar";
@@ -14,6 +15,7 @@ const field =
 
 /** Pantalla «Cuenta 1»: una tarjeta con dos pestañas, Crear cuenta e Ingresar. */
 export function AccountForms({ initialMode, initialRole, returnTo }: { initialMode: Mode; initialRole: Role; returnTo?: string }) {
+  const { t, ruta } = useT();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>(initialMode);
   const [role, setRole] = useState<Role>(initialRole);
@@ -28,17 +30,18 @@ export function AccountForms({ initialMode, initialRole, returnTo }: { initialMo
     const password = String(form.get("password") ?? "");
 
     if (mode === "crear") {
-      if (password.length < 8) return setError("La contraseña debe tener al menos 8 caracteres.");
-      if (password !== String(form.get("password2") ?? "")) return setError("Las contraseñas no coinciden.");
-      if (!form.get("consent")) return setError("Acepta los términos y el tratamiento de datos para continuar.");
+      if (password.length < 8) return setError(t("cuenta.form.error.corta"));
+      if (password !== String(form.get("password2") ?? "")) return setError(t("cuenta.form.error.noCoinciden"));
+      if (!form.get("consent")) return setError(t("cuenta.form.error.consentimiento"));
     }
 
     setBusy(true);
     const result =
-      mode === "crear" ? await signUp(email, password, role, returnTo) : await signIn(email, password, returnTo);
+      mode === "crear" ? await signUp(t, email, password, role, returnTo) : await signIn(t, email, password, returnTo);
     setBusy(false);
     if (!result.ok) return setError(result.message);
-    router.push(result.data.redirectTo);
+    // El servidor devuelve la ruta sin prefijo de idioma.
+    router.push(ruta(result.data.redirectTo));
     router.refresh();
   }
 
@@ -60,21 +63,21 @@ export function AccountForms({ initialMode, initialRole, returnTo }: { initialMo
   return (
     <div className="w-full max-w-xl rounded-3xl bg-white p-8 shadow-lg sm:p-10">
       <div role="tablist" className="mb-6 flex rounded-full bg-crema p-1.5">
-        {tab("crear", "Crear cuenta")}
-        {tab("ingresar", "Ingresar")}
+        {tab("crear", t("comun.nav.crearCuenta"))}
+        {tab("ingresar", t("comun.nav.ingresar"))}
       </div>
 
       <form onSubmit={onSubmit} className="space-y-5" noValidate>
-        <h1 className="text-4xl">{mode === "crear" ? "Crea tu cuenta" : "Hola de nuevo"}</h1>
+        <h1 className="text-4xl">{mode === "crear" ? t("cuenta.form.tituloCrear") : t("cuenta.form.tituloIngresar")}</h1>
 
         {mode === "crear" ? (
           <fieldset>
-            <legend className="mb-2 font-semibold">¿Cómo vas a participar?</legend>
+            <legend className="mb-2 font-semibold">{t("cuenta.form.participar")}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
               {(
                 [
-                  ["persona", "Como persona", "Dona, sé voluntario o las dos"],
-                  ["ong", "Como ONG", "Muestra tus casos y recibe aportes"],
+                  ["persona", t("cuenta.form.persona.titulo"), t("cuenta.form.persona.texto")],
+                  ["ong", t("cuenta.form.ong.titulo"), t("cuenta.form.ong.texto")],
                 ] as const
               ).map(([value, title, text]) => (
                 <label
@@ -98,13 +101,20 @@ export function AccountForms({ initialMode, initialRole, returnTo }: { initialMo
         ) : null}
 
         <label className="block">
-          <span className="font-semibold">Correo</span>
-          <input name="email" type="email" required autoComplete="email" placeholder="tu@correo.com" className={field} />
+          <span className="font-semibold">{t("cuenta.form.correo")}</span>
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            placeholder={t("cuenta.form.correoEjemplo")}
+            className={field}
+          />
         </label>
 
         <div className={mode === "crear" ? "grid gap-3 sm:grid-cols-2" : ""}>
           <label className="block">
-            <span className="font-semibold">Contraseña</span>
+            <span className="font-semibold">{t("cuenta.form.contrasena")}</span>
             <input
               name="password"
               type="password"
@@ -116,22 +126,22 @@ export function AccountForms({ initialMode, initialRole, returnTo }: { initialMo
           </label>
           {mode === "crear" ? (
             <label className="block">
-              <span className="font-semibold">Repite la contraseña</span>
+              <span className="font-semibold">{t("cuenta.form.repetir")}</span>
               <input name="password2" type="password" required autoComplete="new-password" className={field} />
             </label>
           ) : null}
         </div>
-        {mode === "crear" ? <p className="-mt-3 text-sm text-secundario">Mínimo 8 caracteres</p> : null}
+        {mode === "crear" ? <p className="-mt-3 text-sm text-secundario">{t("cuenta.form.minimo")}</p> : null}
 
         {mode === "crear" ? (
           <label className="flex gap-3 text-sm">
             <input name="consent" type="checkbox" className="mt-0.5 h-5 w-5 accent-bosque" />
-            <span>Acepto los términos y autorizo el tratamiento de mis datos (Ley 1581 de 2012).</span>
+            <span>{t("cuenta.form.consentimiento")}</span>
           </label>
         ) : (
           <p className="text-sm">
-            <Link href="/#cuenta" className="font-medium text-bosque underline">
-              ¿Olvidaste tu contraseña?
+            <Link href={ruta("/#cuenta")} className="font-medium text-bosque underline">
+              {t("cuenta.form.olvidaste")}
             </Link>
           </p>
         )}
@@ -143,13 +153,11 @@ export function AccountForms({ initialMode, initialRole, returnTo }: { initialMo
         ) : null}
 
         <button type="submit" disabled={busy} className={buttonClass("primario", "w-full py-3.5 text-lg")}>
-          {busy ? "Un momento…" : mode === "crear" ? "Crear cuenta" : "Ingresar"}
+          {busy ? t("cuenta.form.unMomento") : mode === "crear" ? t("comun.nav.crearCuenta") : t("comun.nav.ingresar")}
         </button>
 
         <p className="text-sm text-secundario">
-          {mode === "crear"
-            ? "Después terminas tu perfil. La billetera de Stellar la conectas cuando vayas a aportar."
-            : "Las personas llegan a su perfil y las ONG a su portal. La billetera de Stellar se conecta después, cuando vayas a aportar o a registrar un gasto."}
+          {mode === "crear" ? t("cuenta.form.notaCrear") : t("cuenta.form.notaIngresar")}
         </p>
       </form>
     </div>

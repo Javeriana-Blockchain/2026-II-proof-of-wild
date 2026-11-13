@@ -2,12 +2,17 @@ import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { requireSession } from "@/app/_lib/session";
 import { Logo } from "@/components/sitio/Logo";
+import { SelectorIdioma } from "@/components/sitio/SelectorIdioma";
 import { TestnetBadge } from "@/components/ui";
+import { getT } from "@/i18n/servidor";
 import { getDb } from "@/platform/db/client";
 import { personProfiles } from "@/platform/db/schema";
 import { ProfileForm } from "./ProfileForm";
 
-export const metadata: Metadata = { title: "Termina tu perfil" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+  return { title: t("cuenta.perfil.meta") };
+}
 export const dynamic = "force-dynamic";
 
 const INTERESTS = ["aves", "mamiferos", "reptiles"] as const;
@@ -27,8 +32,11 @@ export default async function TerminarPerfilPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-8">
           <Logo />
           <div className="flex items-center gap-4">
-            <TestnetBadge />
-            <span className="flex items-center gap-2 rounded-full border border-arena bg-white px-5 py-2 font-semibold">
+            <SelectorIdioma />
+            <span className="hidden sm:contents">
+              <TestnetBadge />
+            </span>
+            <span className="hidden items-center gap-2 rounded-full md:flex border border-arena bg-white px-5 py-2 font-semibold">
               <span aria-hidden className="h-2 w-2 rounded-full bg-bosque" />
               {session.email}
             </span>

@@ -1,39 +1,41 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { getSession, homeFor } from "@/app/_lib/session";
 import { IconoCheck } from "@/components/iconos";
 import { Logo } from "@/components/sitio/Logo";
+import { SelectorIdioma } from "@/components/sitio/SelectorIdioma";
 import { TestnetBadge } from "@/components/ui";
+import { quitarIdioma } from "@/i18n/config";
+import { getT, redirigir } from "@/i18n/servidor";
 import { getCatalogService } from "@/platform/container";
 import { AccountForms } from "./AccountForms";
 
-export const metadata: Metadata = { title: "Crear cuenta o ingresar" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+  return { title: t("cuenta.ingresar.meta") };
+}
 
 type Props = { searchParams: Promise<{ modo?: string; tipo?: string; volver?: string }> };
 
-const LINEAS = [
-  ["Donantes:", "ven en qué se usa cada aporte."],
-  ["Voluntarios:", "se inscriben a jornadas en las ONG."],
-  ["ONG:", "publican sus casos y rinden cuentas."],
-];
+const LINEAS = ["cuenta.ingresar.linea.donantes", "cuenta.ingresar.linea.voluntarios", "cuenta.ingresar.linea.ong"] as const;
 
 /** Si la persona llega desde «Apadrinar», el caso que eligió: así la página le muestra a quién va a apadrinar. */
-async function sponsoredCase(volver: string | undefined) {
-  const code = volver?.match(/^\/casos\/(POW_\d{3,6})\?(?:.*&)?apadrinar=1/)?.[1];
+async function sponsoredCase(volver: string | undefined, sinNombre: string) {
+  const code = quitarIdioma(volver ?? "").match(/^\/casos\/(POW_\d{3,6})\?(?:.*&)?apadrinar=1/)?.[1];
   if (!code) return null;
   const detail = await getCatalogService().caseDetail(code);
-  return detail ? { name: detail.commonName ?? "este caso", photoUrl: detail.photoUrl } : null;
+  return detail ? { name: detail.commonName ?? sinNombre, photoUrl: detail.photoUrl } : null;
 }
 
 /** Cuenta 1: crear cuenta (persona u ONG) o ingresar. Todos entran con correo y contraseña. */
 export default async function IngresarPage({ searchParams }: Props) {
   const { modo, tipo, volver } = await searchParams;
+  const { t, rich, ruta } = await getT();
   const session = await getSession();
   // Con la sesión ya iniciada no hay nada que hacer aquí: vuelve a donde iba (si es una ruta interna) o a su inicio.
-  if (session) redirect(volver?.startsWith("/") && !volver.startsWith("//") ? volver : homeFor(session));
-  const caso = await sponsoredCase(volver);
+  if (session) return redirigir(volver?.startsWith("/") && !volver.startsWith("//") ? volver : homeFor(session));
+  const caso = await sponsoredCase(volver, t("cuenta.ingresar.esteCaso"));
 
   return (
     <main className="grid min-h-screen lg:grid-cols-[3fr_4fr]">
@@ -53,13 +55,17 @@ export default async function IngresarPage({ searchParams }: Props) {
         {caso ? (
           <>
             <div className="relative space-y-4">
-              <h2 className="text-5xl leading-tight xl:text-6xl">Estás a un paso de apadrinar a {caso.name}</h2>
-              <p className="max-w-md text-lg text-white/90">
-                Crea tu cuenta o ingresa, y volverás al caso con la ventana para apadrinar abierta.
-              </p>
+              <h2 className="text-5xl leading-tight xl:text-6xl">
+                {t("cuenta.ingresar.caso.titulo", { nombre: caso.name })}
+              </h2>
+              <p className="max-w-md text-lg text-white/90">{t("cuenta.ingresar.caso.texto")}</p>
             </div>
             <ol className="relative space-y-3">
-              {[`Elegiste a ${caso.name}`, "Crea tu cuenta o ingresa", "Conecta tu billetera y apadrina"].map((paso, i) => (
+              {[
+                t("cuenta.ingresar.caso.paso1", { nombre: caso.name }),
+                t("cuenta.ingresar.caso.paso2"),
+                t("cuenta.ingresar.caso.paso3"),
+              ].map((paso, i) => (
                 <li key={paso} className="flex items-center gap-3">
                   <span
                     className={`cifras flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${i === 0 ? "bg-salvia text-profundo" : i === 1 ? "bg-crema text-profundo ring-4 ring-crema/30" : "border-2 border-dashed border-white/50"}`}
@@ -74,19 +80,14 @@ export default async function IngresarPage({ searchParams }: Props) {
         ) : (
           <>
             <div className="relative space-y-4">
-              <h2 className="text-6xl leading-tight">Tu huella empieza aquí</h2>
-              <p className="max-w-md text-lg text-white/90">
-                Crea tu cuenta una sola vez y úsala para apadrinar casos, inscribirte a voluntariados o mostrar el
-                trabajo de tu ONG.
-              </p>
+              <h2 className="text-6xl leading-tight">{t("cuenta.ingresar.titulo")}</h2>
+              <p className="max-w-md text-lg text-white/90">{t("cuenta.ingresar.texto")}</p>
             </div>
             <ul className="relative space-y-2">
-              {LINEAS.map(([quien, que]) => (
-                <li key={quien} className="flex items-center gap-3">
+              {LINEAS.map((clave) => (
+                <li key={clave} className="flex items-center gap-3">
                   <IconoCheck className="h-5 w-5 text-salvia" />
-                  <span>
-                    <strong>{quien}</strong> {que}
-                  </span>
+                  <span>{rich(clave, { b: (s) => <strong>{s}</strong> })}</span>
                 </li>
               ))}
             </ul>
@@ -95,13 +96,16 @@ export default async function IngresarPage({ searchParams }: Props) {
       </section>
 
       <section className="flex flex-col p-6 sm:p-10">
-        <div className="flex items-center justify-end gap-4">
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-3">
           <span className="mr-auto lg:hidden">
             <Logo />
           </span>
-          <TestnetBadge />
-          <Link href="/" className="font-medium text-bosque underline">
-            Volver al inicio
+          <SelectorIdioma />
+          <span className="hidden sm:contents">
+            <TestnetBadge />
+          </span>
+          <Link href={ruta("/")} className="font-medium text-bosque underline">
+            {t("cuenta.ingresar.volverInicio")}
           </Link>
         </div>
         <div className="flex flex-1 flex-col items-center justify-center gap-5 py-10">
@@ -113,8 +117,8 @@ export default async function IngresarPage({ searchParams }: Props) {
                 </span>
               ) : null}
               <p>
-                <strong className="block">Estás a un paso de apadrinar a {caso.name}</strong>
-                <span className="text-sm text-white/85">Al terminar vuelves al caso para apadrinar.</span>
+                <strong className="block">{t("cuenta.ingresar.caso.titulo", { nombre: caso.name })}</strong>
+                <span className="text-sm text-white/85">{t("cuenta.ingresar.caso.alTerminar")}</span>
               </p>
             </div>
           ) : null}
