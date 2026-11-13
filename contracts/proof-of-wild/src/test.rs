@@ -1,11 +1,13 @@
 #![cfg(test)]
 
+extern crate std;
+
 use super::*;
 use soroban_sdk::{
     symbol_short,
-    testutils::Address as _,
+    testutils::{Address as _, AuthorizedFunction, AuthorizedInvocation, MockAuth, MockAuthInvoke},
     token::{StellarAssetClient, TokenClient},
-    vec, Address, BytesN, Env, Symbol, Vec,
+    vec, Address, BytesN, Env, IntoVal, Symbol, Vec,
 };
 
 /// 1 USDC de prueba = 10.000.000 unidades (7 decimales, como todos los activos de Stellar).
@@ -278,4 +280,147 @@ fn reparte_los_aportes_de_los_datos_de_prueba_como_dice_el_documento() {
         assert_eq!(r.recaudado, r.meta);
     }
     assert_eq!(s.client.consultar_caso(&symbol_short!("POW_002")).recaudado, usdc(35));
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Autorización con firmas concretas (`mock_auths`). Las pruebas de arriba usan `mock_all_auths()`, que da por
+// buena cualquier firma; estas dicen exactamente quién firma qué y comprueban que otra firma no sirve.
+// ---------------------------------------------------------------------------------------------------------
+
+#[test]
+fn aportar_solo_con_la_firma_del_donante() {
+    let s = setup();
+    let caso = guacamaya(&s);
+    let monto = usdc(50);
+    let contrato = s.client.address.clone();
+    let token = s.token.address.clone();
+
+    // Ni el administrador puede aportar con el dinero de Ana: su firma no reemplaza la de ella.
+    s.env.mock_auths(&[MockAuth {
+        address: &s.admin,
+        invoke: &MockAuthInvoke {
+            contract: &contrato,
+            fn_name: "aportar",
+            args: (&s.donante, &caso, monto).into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_aportar(&s.donante, &caso, &monto).is_err());
+    assert_eq!(s.token.balance(&s.donante), usdc(100));
+
+    // Ana firma el aporte y, dentro de él, la transferencia de su USDC al contrato.
+    s.env.mock_auths(&[MockAuth {
+        address: &s.donante,
+        invoke: &MockAuthInvoke {
+            contract: &contrato,
+            fn_name: "aportar",
+            args: (&s.donante, &caso, monto).into_val(&s.env),
+            sub_invokes: &[MockAuthInvoke {
+                contract: &token,
+                fn_name: "transfer",
+                args: (&s.donante, &contrato, monto).into_val(&s.env),
+                sub_invokes: &[],
+            }],
+        },
+    }]);
+    s.client.aportar(&s.donante, &caso, &monto);
+
+    // La red registró exactamente esa firma: el aporte de Ana y su transferencia, nada más.
+    assert_eq!(
+        s.env.auths(),
+        std::vec![(
+            s.donante.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    contrato.clone(),
+                    Symbol::new(&s.env, "aportar"),
+                    (&s.donante, &caso, monto).into_val(&s.env),
+                )),
+                sub_invocations: std::vec![AuthorizedInvocation {
+                    function: AuthorizedFunction::Contract((
+                        token.clone(),
+                        Symbol::new(&s.env, "transfer"),
+                        (&s.donante, &contrato, monto).into_val(&s.env),
+                    )),
+                    sub_invocations: std::vec![],
+                }],
+            }
+        )]
+    );
+    assert_eq!(s.token.balance(&s.donante), usdc(50));
+    assert_eq!(s.token.balance(&contrato), monto);
+}
+
+#[test]
+fn registrar_gasto_solo_con_la_firma_de_la_ong_del_caso() {
+    let s = setup();
+    let caso = guacamaya(&s);
+    s.client.aportar(&s.donante, &caso, &usdc(50));
+    let factura = hash(&s.env, 7);
+    let args: Vec<soroban_sdk::Val> = (&s.ong, &caso, 1u32, &s.proveedor, usdc(40), &factura).into_val(&s.env);
+
+    // El proveedor no puede cobrarse solo: si firma él y no la ONG, el contrato no le paga.
+    s.env.mock_auths(&[MockAuth {
+        address: &s.proveedor,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "registrar_gasto",
+            args: args.clone(),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s
+        .client
+        .try_registrar_gasto(&s.ong, &caso, &1, &s.proveedor, &usdc(40), &factura)
+        .is_err());
+    assert_eq!(s.token.balance(&s.proveedor), 0);
+
+    // Con la firma de la ONG del caso, el contrato le paga al proveedor desde la etapa 1.
+    s.env.mock_auths(&[MockAuth {
+        address: &s.ong,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "registrar_gasto",
+            args,
+            sub_invokes: &[],
+        },
+    }]);
+    s.client.registrar_gasto(&s.ong, &caso, &1, &s.proveedor, &usdc(40), &factura);
+    assert_eq!(s.env.auths().len(), 1);
+    assert_eq!(s.env.auths()[0].0, s.ong);
+    assert_eq!(s.token.balance(&s.proveedor), usdc(40));
+}
+
+#[test]
+fn crear_caso_solo_con_la_firma_del_administrador() {
+    let s = setup();
+    let caso = symbol_short!("POW_011");
+    let etapas = costos(&s.env, &[10, 20]);
+    let args: Vec<soroban_sdk::Val> = (&caso, &s.ong, &etapas).into_val(&s.env);
+
+    // Una ONG no puede crear sus propios casos.
+    s.env.mock_auths(&[MockAuth {
+        address: &s.ong,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "crear_caso",
+            args: args.clone(),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_crear_caso(&caso, &s.ong, &etapas).is_err());
+    assert_eq!(s.client.try_consultar_caso(&caso), Err(Ok(Error::CasoNoExiste)));
+
+    s.env.mock_auths(&[MockAuth {
+        address: &s.admin,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "crear_caso",
+            args,
+            sub_invokes: &[],
+        },
+    }]);
+    s.client.crear_caso(&caso, &s.ong, &etapas);
+    assert_eq!(s.env.auths()[0].0, s.admin);
+    assert_eq!(s.client.consultar_caso(&caso).meta, usdc(30));
 }
