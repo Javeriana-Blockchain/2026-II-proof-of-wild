@@ -196,7 +196,7 @@ Amplía el contrato `RaizSilvestre` de la semana 3 (su código sigue en [`contra
 
 ## Declaración de uso de IA (proyecto completo)
 
-86 de los 110 commits de esta rama (al 12 de noviembre de 2026) llevan la línea `Co-Authored-By: Claude …`. Se listan con `git log --grep="Co-Authored-By: Claude" --oneline`. Los 8 commits de las entregas de las semanas 2 a 4 no la llevan, aunque en el contrato `RaizSilvestre`, sus pruebas y su CI también usamos Claude Code, como se declaró en la entrega de la semana 4.
+87 de los 111 commits de la rama `entrega/demo-day` (al 12 de noviembre de 2026) llevan la línea `Co-Authored-By: Claude …`. Se listan con `git log --grep="Co-Authored-By: Claude" --oneline`. Los 8 commits de las entregas de las semanas 2 a 4 no la llevan, aunque en el contrato `RaizSilvestre`, sus pruebas y su CI también usamos Claude Code, como se declaró en la entrega de la semana 4.
 
 | Qué parte | Herramienta | Para qué | Qué verificamos a mano |
 |---|---|---|---|
